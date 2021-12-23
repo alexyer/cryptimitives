@@ -1,0 +1,37 @@
+[package]
+name = "cryptimitives"
+license = "MIT"
+version = "0.1.0"
+edition = "2021"
+authors = ["Oleksandr Yermakov <olexander.yermakov@gmail.com>"]
+categories = ["cryptography"]
+keywords = ["crypto", "cryptography"]
+description = "Cryptographic primitives collection."
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+aes-gcm = { version = "0.9.4", features = ["alloc"] }
+cryptraits = "0.1.0"
+cryptraits-macros = "0.1.0"
+curve25519-dalek-ng = { version = "4.1.1", features = ["alloc"] }
+hkdf = { version = "0.12.0", default-features = false }
+rand_core = { version = "0.6.3", default-features = false }
+schnorrkel = { version = "0.10.2", default-features = false }
+sha2 = { version = "0.10.0", default-features = false }
+zeroize = { version = "1.4.3", features = ["zeroize_derive"] }
+
+[features]
+default = ["std"]
+std = [
+    "cryptraits/std",
+    "aes-gcm/std",
+    "hkdf/std",
+    "rand_core/std",
+    "schnorrkel/std",
+    "schnorrkel/u64_backend",
+    "schnorrkel/getrandom",
+    "curve25519-dalek-ng/std",
+    "curve25519-dalek-ng/u64_backend",
+    "sha2/std"
+]
