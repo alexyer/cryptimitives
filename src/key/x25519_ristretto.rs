@@ -40,6 +40,12 @@ impl SecretKeyTrait for SecretKey {
     }
 }
 
+impl From<EphemeralSecretKey> for SecretKey {
+    fn from(esk: EphemeralSecretKey) -> Self {
+        Self::from_bytes(&esk.to_vec()).unwrap()
+    }
+}
+
 impl DiffieHellman for SecretKey {
     type SSK = SharedSecret;
     type PK = PublicKey;
