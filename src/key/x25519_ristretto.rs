@@ -40,6 +40,21 @@ impl SecretKeyTrait for SecretKey {
     }
 }
 
+impl DiffieHellman for SecretKey {
+    type SSK = SharedSecret;
+    type PK = PublicKey;
+
+    fn diffie_hellman(&self, peer_public: &Self::PK) -> Self::SSK {
+        let mut secret_bytes: [u8; 32] = [0; 32];
+
+        secret_bytes.copy_from_slice(&self.0.to_bytes()[..32]);
+
+        let scalar = Scalar::from_canonical_bytes(secret_bytes).unwrap();
+
+        SharedSecret(scalar * peer_public.0.as_point())
+    }
+}
+
 impl FromBytes for SecretKey {
     type E = KeyPairError;
     const LEN: usize = 64;
@@ -97,17 +112,17 @@ impl FromBytes for PublicKey {
     }
 }
 
-// impl From<EphemeralPublicKey> for PublicKey {
-//     fn from(epk: EphemeralPublicKey) -> Self {
-//         Self(epk.0)
-//     }
-// }
+impl From<EphemeralPublicKey> for PublicKey {
+    fn from(epk: EphemeralPublicKey) -> Self {
+        Self(epk.0)
+    }
+}
 
-// impl Into<EphemeralPublicKey> for &PublicKey {
-//     fn into(self) -> EphemeralPublicKey {
-//         EphemeralPublicKey(self.0)
-//     }
-// }
+impl Into<EphemeralPublicKey> for &PublicKey {
+    fn into(self) -> EphemeralPublicKey {
+        EphemeralPublicKey(self.0)
+    }
+}
 
 impl ToVec for PublicKey {
     const LEN: usize = 32;
