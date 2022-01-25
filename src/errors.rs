@@ -19,6 +19,13 @@ pub enum KeyPairError {
     UnknownError(String),
 }
 
+/// HMAC algorithm errors.
+#[derive(Debug, Error)]
+pub enum HmacError {
+    InvalidLength,
+    MacError,
+}
+
 /// Errors which may occur while processing signatures.
 #[derive(Debug, Error, PartialEq)]
 pub enum SignatureError {
