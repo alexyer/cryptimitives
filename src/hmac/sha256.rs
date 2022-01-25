@@ -1,21 +1,21 @@
 //! SHA-256 based HMAC.
 
-use hmac::{Hmac, Mac};
+use hmac::Mac;
 use sha2::Sha256;
 
 use crate::errors::HmacError;
 
 /// SHA-256 based HMAC.
-pub struct HmacSha(Hmac<Sha256>);
+pub struct Hmac(hmac::Hmac<Sha256>);
 
-impl cryptraits::hmac::Hmac for HmacSha {
+impl cryptraits::hmac::Hmac for Hmac {
     type E = HmacError;
 
     fn new_from_slice(key: &[u8]) -> Result<Self, Self::E>
     where
         Self: Sized,
     {
-        let hmac = Hmac::new_from_slice(key).or(Err(HmacError::InvalidLength))?;
+        let hmac = hmac::Hmac::new_from_slice(key).or(Err(HmacError::InvalidLength))?;
         Ok(Self(hmac))
     }
 
@@ -34,14 +34,14 @@ impl cryptraits::hmac::Hmac for HmacSha {
 
 #[cfg(test)]
 mod tests {
-    use cryptraits::hmac::Hmac;
+    use cryptraits::hmac::Hmac as _;
     use hex_literal::hex;
 
-    use super::HmacSha;
+    use super::Hmac;
 
     #[test]
     fn test_hmac_sha256() {
-        let mut mac = HmacSha::new_from_slice(b"my secret and secure key")
+        let mut mac = Hmac::new_from_slice(b"my secret and secure key")
             .expect("HMAC can take key of any size");
 
         mac.update(b"input message");
