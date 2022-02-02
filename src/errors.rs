@@ -17,6 +17,8 @@ pub enum KdfError {
 pub enum KeyPairError {
     BytesLengthError,
     UnknownError(String),
+    MnemonicPhraseError(String),
+    InvalidEntropy,
 }
 
 /// HMAC algorithm errors.
@@ -31,4 +33,10 @@ pub enum HmacError {
 pub enum SignatureError {
     /// A signature verification equation failed.
     EquationFalse,
+}
+
+impl From<bip39::Error> for KeyPairError {
+    fn from(e: bip39::Error) -> Self {
+        Self::MnemonicPhraseError(e.to_string())
+    }
 }

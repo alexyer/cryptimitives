@@ -1,7 +1,7 @@
 [package]
 name = "cryptimitives"
 license = "MIT"
-version = "0.9.0"
+version = "0.10.0"
 edition = "2021"
 authors = ["Oleksandr Yermakov <olexander.yermakov@gmail.com>"]
 categories = ["cryptography"]
@@ -12,7 +12,8 @@ description = "Cryptographic primitives collection."
 
 [dependencies]
 aes-gcm = { version = "0.9.4", features = ["alloc"] }
-cryptraits = "0.4.0"
+bip39 = { version = "1.0.1", features = [] }
+cryptraits = "0.5.0"
 cryptraits-macros = "0.1.0"
 curve25519-dalek-ng = { version = "4.1.1", features = ["alloc"] }
 hkdf = { version = "0.12.0", default-features = false }
@@ -23,13 +24,15 @@ sha2 = { version = "0.10.0", default-features = false }
 zeroize = { version = "1.4.3", features = ["zeroize_derive"] }
 
 [dev-dependencies]
-hex-literal = "0.3.4"
+hex = "0.4.3"
 
 [features]
 default = ["std"]
 std = [
     "cryptraits/std",
     "aes-gcm/std",
+    "bip39/std",
+    "bip39/rand",
     "hmac/std",
     "hkdf/std",
     "rand_core/std",

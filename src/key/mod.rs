@@ -5,7 +5,7 @@ use std::fmt::Debug;
 use alloc::fmt::Debug;
 
 use cryptraits::{
-    convert::{FromBytes, ToVec},
+    convert::{FromBytes, Len, ToVec},
     key::{KeyPair as KeypairTrait, SecretKey},
     key_exchange::DiffieHellman,
     signature::{Sign, Verify},
@@ -27,6 +27,14 @@ where
     public: SK::PK,
 }
 
+impl<SK> Len for KeyPair<SK>
+where
+    SK: SecretKey + Len,
+    SK::PK: Len,
+{
+    const LEN: usize = SK::LEN + <<SK as SecretKey>::PK as Len>::LEN;
+}
+
 impl<SK> KeypairTrait for KeyPair<SK>
 where
     SK: SecretKey,
@@ -43,16 +51,20 @@ where
         KeyPair { secret, public }
     }
 
-    fn to_public(&self) -> SK::PK {
-        self.public
-    }
-
     fn public(&self) -> &<Self::SK as SecretKey>::PK {
         &self.public
     }
 
+    fn to_public(&self) -> SK::PK {
+        self.public
+    }
+
     fn secret(&self) -> &Self::SK {
         &self.secret
+    }
+
+    fn generate() -> Self {
+        Self::generate_with(&mut OsRng)
     }
 }
 
@@ -76,13 +88,11 @@ where
 
 impl<SK> FromBytes for KeyPair<SK>
 where
-    SK: SecretKey + FromBytes,
-    SK::PK: FromBytes,
+    SK: SecretKey + FromBytes + Len,
+    SK::PK: FromBytes + Len,
     KeyPairError: From<<SK as FromBytes>::E> + From<<<SK as SecretKey>::PK as FromBytes>::E>,
 {
     type E = KeyPairError;
-    const LEN: usize = SK::LEN + <<SK as SecretKey>::PK as FromBytes>::LEN;
-
     fn from_bytes(bytes: &[u8]) -> Result<Self, Self::E> {
         if bytes.len() != Self::LEN {
             return Err(KeyPairError::BytesLengthError);
@@ -97,11 +107,9 @@ where
 
 impl<SK> ToVec for KeyPair<SK>
 where
-    SK: SecretKey + ToVec,
-    SK::PK: ToVec,
+    SK: SecretKey + ToVec + Len,
+    SK::PK: ToVec + Len,
 {
-    const LEN: usize = SK::LEN + <SK::PK as ToVec>::LEN;
-
     fn to_vec(&self) -> Vec<u8> {
         let mut bytes: Vec<u8> = Vec::new();
 

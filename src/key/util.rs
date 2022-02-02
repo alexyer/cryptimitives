@@ -1,7 +1,8 @@
 //! Utility functions and test stubs.
 
 use cryptraits::{
-    convert::{FromBytes, ToVec},
+    convert::{FromBytes, Len, ToVec},
+    kdf::Kdf,
     key::{PublicKey, SecretKey},
     signature::Signature,
 };
@@ -17,15 +18,14 @@ impl PublicKey for TestPublicKey {}
 
 impl FromBytes for TestPublicKey {
     type E = KeyPairError;
-    const LEN: usize = 5;
 
     fn from_bytes(bytes: &[u8]) -> Result<Self, KeyPairError>
     where
         Self: Sized,
     {
-        let mut key: [u8; <Self as FromBytes>::LEN] = [0; <Self as FromBytes>::LEN];
+        let mut key: [u8; <Self as Len>::LEN] = [0; <Self as Len>::LEN];
 
-        for i in 0..<Self as FromBytes>::LEN {
+        for i in 0..<Self as Len>::LEN {
             key[i] = bytes[i];
         }
 
@@ -33,9 +33,11 @@ impl FromBytes for TestPublicKey {
     }
 }
 
-impl ToVec for TestPublicKey {
+impl Len for TestPublicKey {
     const LEN: usize = 5;
+}
 
+impl ToVec for TestPublicKey {
     fn to_vec(&self) -> Vec<u8>
     where
         Self: Sized,
@@ -61,11 +63,14 @@ impl SecretKey for TestSecretKey {
     fn to_public(&self) -> Self::PK {
         todo!()
     }
+
+    fn generate() -> Self {
+        todo!()
+    }
 }
 
 impl FromBytes for TestSecretKey {
     type E = KeyPairError;
-    const LEN: usize = 5;
 
     fn from_bytes(bytes: &[u8]) -> Result<Self, KeyPairError>
     where
@@ -81,14 +86,16 @@ impl FromBytes for TestSecretKey {
     }
 }
 
+impl Len for TestSecretKey {
+    const LEN: usize = 5;
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TestSignature([u8; 2]);
 
 impl Signature for TestSignature {}
 
 impl ToVec for TestSignature {
-    const LEN: usize = 2;
-
     fn to_vec(&self) -> Vec<u8>
     where
         Self: Sized,
@@ -97,9 +104,12 @@ impl ToVec for TestSignature {
     }
 }
 
+impl Len for TestSignature {
+    const LEN: usize = 2;
+}
+
 impl FromBytes for TestSignature {
     type E = KeyPairError;
-    const LEN: usize = 2;
 
     fn from_bytes(bytes: &[u8]) -> Result<Self, KeyPairError>
     where
@@ -113,4 +123,27 @@ impl FromBytes for TestSignature {
 
         Ok(Self(signature))
     }
+}
+
+pub fn seed_from_entropy(entropy: &[u8], password: &str) -> Result<[u8; 64], KeyPairError> {
+    if entropy.len() < 16 || entropy.len() > 32 || entropy.len() % 4 != 0 {
+        return Err(KeyPairError::InvalidEntropy);
+    }
+
+    let mut salt = String::with_capacity(8 + password.len());
+    salt.push_str("mnemonic");
+    salt.push_str(password);
+
+    let mut seed = [0u8; 64];
+
+    let pbkdf2 =
+        crate::kdf::pbkdf2::Kdf::<crate::hmac::sha512::Hmac>::new(Some(salt.as_bytes()), entropy);
+
+    pbkdf2
+        .pbkdf2(&mut seed, 2048)
+        .or(Err(KeyPairError::InvalidEntropy))?;
+
+    salt.zeroize();
+
+    Ok(seed)
 }

@@ -1,14 +1,16 @@
 //! Curve25519 with Ristretto point compression.
 
+use bip39::Mnemonic;
 use cryptraits::{
-    convert::{FromBytes, ToVec},
+    convert::{FromBytes, Len, ToVec},
     key::PublicKey as PublicKeyTrait,
-    key::{SecretKey as SecretKeyTrait, SharedSecretKey},
+    key::{SecretKey as SecretKeyTrait, SharedSecretKey, WithPhrase},
     key_exchange::DiffieHellman,
     signature::{Sign, Signature as SignatureTrait, Verify},
 };
 use curve25519_dalek_ng::{ristretto::RistrettoPoint, scalar::Scalar};
-use rand_core::{CryptoRng, RngCore};
+use rand_core::{CryptoRng, OsRng, RngCore};
+use schnorrkel::{ExpansionMode, MiniSecretKey};
 use zeroize::Zeroize;
 
 use crate::errors::{KeyPairError, SignatureError};
@@ -19,7 +21,34 @@ use std::fmt::Debug;
 #[cfg(not(feature = "std"))]
 use alloc::fmt::Debug;
 
+use super::util::seed_from_entropy;
+
 pub type KeyPair = super::KeyPair<SecretKey>;
+
+impl WithPhrase for KeyPair {
+    type E = KeyPairError;
+
+    fn generate_with_phrase(word_count: usize, password: Option<&str>) -> Result<Self, Self::E>
+    where
+        Self: Sized,
+    {
+        let s = Mnemonic::generate(word_count)?;
+        Self::from_phrase(s.to_string(), password)
+    }
+
+    fn from_phrase<'a, S: Into<std::borrow::Cow<'a, str>>>(
+        s: S,
+        password: Option<&str>,
+    ) -> Result<Self, Self::E>
+    where
+        Self: Sized,
+    {
+        let secret = SecretKey::from_phrase(s, password)?;
+        let public = secret.to_public();
+
+        Ok(Self { secret, public })
+    }
+}
 
 #[derive(Zeroize, Debug)]
 #[zeroize(drop)]
@@ -38,6 +67,14 @@ impl SecretKeyTrait for SecretKey {
     fn to_public(&self) -> Self::PK {
         PublicKey(self.0.to_public())
     }
+
+    fn generate() -> Self {
+        Self::generate_with(&mut OsRng)
+    }
+}
+
+impl Len for SecretKey {
+    const LEN: usize = 64;
 }
 
 impl From<EphemeralSecretKey> for SecretKey {
@@ -63,7 +100,6 @@ impl DiffieHellman for SecretKey {
 
 impl FromBytes for SecretKey {
     type E = KeyPairError;
-    const LEN: usize = 64;
 
     fn from_bytes(bytes: &[u8]) -> Result<Self, Self::E>
     where
@@ -77,13 +113,36 @@ impl FromBytes for SecretKey {
 }
 
 impl ToVec for SecretKey {
-    const LEN: usize = 64;
-
     fn to_vec(&self) -> Vec<u8>
     where
         Self: Sized,
     {
         Vec::from(self.0.to_bytes())
+    }
+}
+
+impl WithPhrase for SecretKey {
+    type E = KeyPairError;
+
+    fn from_phrase<'a, S: Into<std::borrow::Cow<'a, str>>>(
+        s: S,
+        password: Option<&str>,
+    ) -> Result<Self, Self::E>
+    where
+        Self: Sized,
+    {
+        let entropy = Mnemonic::parse(s)?.to_entropy();
+        let seed = seed_from_entropy(&entropy, password.unwrap_or(""))?;
+        let mini_secret_key = MiniSecretKey::from_bytes(&seed[..32]).unwrap();
+        Ok(SecretKey(mini_secret_key.expand(ExpansionMode::Uniform)))
+    }
+
+    fn generate_with_phrase(word_count: usize, password: Option<&str>) -> Result<Self, Self::E>
+    where
+        Self: Sized,
+    {
+        let phrase = Mnemonic::generate(word_count)?;
+        Self::from_phrase(phrase.to_string(), password)
     }
 }
 
@@ -105,7 +164,6 @@ impl PublicKeyTrait for PublicKey {}
 
 impl FromBytes for PublicKey {
     type E = KeyPairError;
-    const LEN: usize = 32;
 
     fn from_bytes(bytes: &[u8]) -> Result<Self, Self::E>
     where
@@ -116,6 +174,10 @@ impl FromBytes for PublicKey {
 
         Ok(PublicKey(public))
     }
+}
+
+impl Len for PublicKey {
+    const LEN: usize = 32;
 }
 
 impl From<EphemeralPublicKey> for PublicKey {
@@ -131,8 +193,6 @@ impl Into<EphemeralPublicKey> for &PublicKey {
 }
 
 impl ToVec for PublicKey {
-    const LEN: usize = 32;
-
     fn to_vec(&self) -> Vec<u8>
     where
         Self: Sized,
@@ -176,7 +236,6 @@ impl SignatureTrait for Signature {}
 
 impl FromBytes for Signature {
     type E = KeyPairError;
-    const LEN: usize = 64;
 
     fn from_bytes(bytes: &[u8]) -> Result<Self, Self::E>
     where
@@ -190,14 +249,16 @@ impl FromBytes for Signature {
 }
 
 impl ToVec for Signature {
-    const LEN: usize = 64;
-
     fn to_vec(&self) -> Vec<u8>
     where
         Self: Sized,
     {
         Vec::from(self.0.to_bytes())
     }
+}
+
+impl Len for Signature {
+    const LEN: usize = 64;
 }
 
 /// A Diffie-Hellman shared secret derived from an `EphemeralSecretKey`
@@ -212,14 +273,16 @@ impl From<SharedSecret> for [u8; 32] {
 }
 
 impl ToVec for SharedSecret {
-    const LEN: usize = 32;
-
     fn to_vec(&self) -> Vec<u8>
     where
         Self: Sized,
     {
         Vec::from(self.0.compress().to_bytes())
     }
+}
+
+impl Len for SharedSecret {
+    const LEN: usize = 32;
 }
 
 #[derive(Zeroize, Debug)]
@@ -240,6 +303,10 @@ impl SecretKeyTrait for EphemeralSecretKey {
 
     fn to_public(&self) -> Self::PK {
         EphemeralPublicKey(self.0.to_public())
+    }
+
+    fn generate() -> Self {
+        Self::generate_with(&mut OsRng)
     }
 }
 
@@ -267,9 +334,11 @@ impl From<PublicKey> for EphemeralPublicKey {
     }
 }
 
-impl ToVec for EphemeralPublicKey {
+impl Len for EphemeralPublicKey {
     const LEN: usize = 32;
+}
 
+impl ToVec for EphemeralPublicKey {
     fn to_vec(&self) -> Vec<u8>
     where
         Self: Sized,
@@ -278,9 +347,11 @@ impl ToVec for EphemeralPublicKey {
     }
 }
 
-impl ToVec for EphemeralSecretKey {
+impl Len for EphemeralSecretKey {
     const LEN: usize = 32;
+}
 
+impl ToVec for EphemeralSecretKey {
     fn to_vec(&self) -> Vec<u8>
     where
         Self: Sized,
@@ -291,11 +362,12 @@ impl ToVec for EphemeralSecretKey {
 
 #[allow(unused_imports)]
 mod tests {
-    use super::EphemeralSecretKey;
-    use crate::errors::SignatureError;
+    use super::{EphemeralSecretKey, PublicKey, SecretKey};
+    use crate::errors::{KeyPairError, SignatureError};
     use crate::key::x25519_ristretto::KeyPair;
+    use bip39::Mnemonic;
     use cryptraits::convert::{FromBytes, ToVec};
-    use cryptraits::key::{KeyPair as _, SecretKey};
+    use cryptraits::key::{KeyPair as _, SecretKey as _, WithPhrase};
     use cryptraits::key_exchange::DiffieHellman;
     use cryptraits::signature::{Sign, Verify};
     use rand_core::OsRng;
@@ -361,5 +433,57 @@ mod tests {
             <[u8; 32]>::from(alice_shared_secret),
             <[u8; 32]>::from(bob_shared_secret)
         );
+    }
+
+    #[test]
+    fn test_secret_key_from_phrase() {
+        assert!(SecretKey::from_phrase("zzzzz", Some("sw0rdf1sh")).is_err());
+
+        let sk = SecretKey::from_phrase(
+            "trade open write rug piece company bonus tone crop pulse story craft rigid solar drama run coconut input crawl blush liar start oxygen smart",
+            Some("sw0rdf1sh")
+        )
+        .unwrap();
+
+        assert_eq!(
+            sk.to_vec(),
+            vec![
+                143, 50, 102, 65, 121, 149, 204, 85, 156, 141, 109, 158, 18, 78, 54, 192, 46, 72,
+                245, 101, 84, 67, 231, 80, 12, 178, 157, 87, 165, 252, 59, 4, 48, 235, 96, 211, 80,
+                219, 108, 91, 188, 178, 72, 160, 214, 67, 143, 125, 177, 251, 164, 18, 189, 58,
+                182, 233, 204, 231, 25, 232, 4, 233, 63, 212
+            ]
+        );
+    }
+
+    #[test]
+    fn test_secret_key_generate_with_phrase() {
+        assert!(SecretKey::generate_with_phrase(12, Some("sw0rdf1sh")).is_ok());
+    }
+
+    #[test]
+    fn test_keypair_from_phrase() {
+        assert!(KeyPair::from_phrase("zzzzz", Some("sw0rdf1sh")).is_err());
+
+        let keypair = KeyPair::from_phrase(
+            "trade open write rug piece company bonus tone crop pulse story craft rigid solar drama run coconut input crawl blush liar start oxygen smart",
+            Some("sw0rdf1sh")
+        )
+        .unwrap();
+
+        assert_eq!(
+            keypair.secret().to_vec(),
+            vec![
+                143, 50, 102, 65, 121, 149, 204, 85, 156, 141, 109, 158, 18, 78, 54, 192, 46, 72,
+                245, 101, 84, 67, 231, 80, 12, 178, 157, 87, 165, 252, 59, 4, 48, 235, 96, 211, 80,
+                219, 108, 91, 188, 178, 72, 160, 214, 67, 143, 125, 177, 251, 164, 18, 189, 58,
+                182, 233, 204, 231, 25, 232, 4, 233, 63, 212
+            ]
+        );
+    }
+
+    #[test]
+    fn test_keypair_generate_with_phrase() {
+        assert!(KeyPair::generate_with_phrase(12, Some("sw0rdf1sh")).is_ok());
     }
 }
