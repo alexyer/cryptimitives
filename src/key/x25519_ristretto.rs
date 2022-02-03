@@ -21,6 +21,9 @@ use std::fmt::Debug;
 #[cfg(not(feature = "std"))]
 use alloc::fmt::Debug;
 
+#[cfg(not(feature = "std"))]
+use alloc::string::String;
+
 use super::util::seed_from_entropy;
 
 pub type KeyPair = super::KeyPair<SecretKey>;
@@ -28,12 +31,17 @@ pub type KeyPair = super::KeyPair<SecretKey>;
 impl WithPhrase for KeyPair {
     type E = KeyPairError;
 
-    fn generate_with_phrase(word_count: usize, password: Option<&str>) -> Result<Self, Self::E>
+    fn generate_with_phrase(
+        word_count: usize,
+        password: Option<&str>,
+    ) -> Result<(Self, String), Self::E>
     where
         Self: Sized,
     {
-        let s = Mnemonic::generate(word_count)?;
-        Self::from_phrase(s.to_string(), password)
+        let s = Mnemonic::generate(word_count)?.to_string();
+        let keypair = Self::from_phrase(&s, password)?;
+
+        Ok((keypair, s))
     }
 
     fn from_phrase<'a, S: Into<std::borrow::Cow<'a, str>>>(
@@ -137,12 +145,17 @@ impl WithPhrase for SecretKey {
         Ok(SecretKey(mini_secret_key.expand(ExpansionMode::Uniform)))
     }
 
-    fn generate_with_phrase(word_count: usize, password: Option<&str>) -> Result<Self, Self::E>
+    fn generate_with_phrase(
+        word_count: usize,
+        password: Option<&str>,
+    ) -> Result<(Self, String), Self::E>
     where
         Self: Sized,
     {
-        let phrase = Mnemonic::generate(word_count)?;
-        Self::from_phrase(phrase.to_string(), password)
+        let phrase = Mnemonic::generate(word_count)?.to_string();
+        let secret_key = Self::from_phrase(&phrase, password)?;
+
+        Ok((secret_key, phrase))
     }
 }
 
@@ -459,6 +472,12 @@ mod tests {
     #[test]
     fn test_secret_key_generate_with_phrase() {
         assert!(SecretKey::generate_with_phrase(12, Some("sw0rdf1sh")).is_ok());
+
+        let (secret_key, phrase) = SecretKey::generate_with_phrase(12, Some("sw0rdf1sh")).unwrap();
+        let secret_key_bytes = secret_key.to_vec();
+        let secret_key = SecretKey::from_phrase(&phrase, Some("sw0rdf1sh")).unwrap();
+
+        assert_eq!(secret_key.to_vec(), secret_key_bytes);
     }
 
     #[test]
@@ -485,5 +504,11 @@ mod tests {
     #[test]
     fn test_keypair_generate_with_phrase() {
         assert!(KeyPair::generate_with_phrase(12, Some("sw0rdf1sh")).is_ok());
+
+        let (keypair, phrase) = KeyPair::generate_with_phrase(12, Some("sw0rdf1sh")).unwrap();
+        let keypair_bytes = keypair.to_vec();
+        let keypair = KeyPair::from_phrase(&phrase, Some("sw0rdf1sh")).unwrap();
+
+        assert_eq!(keypair.to_vec(), keypair_bytes);
     }
 }
