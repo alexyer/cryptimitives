@@ -1,6 +1,6 @@
 //! Curve25519 with Ristretto point compression.
 
-use bip39::Mnemonic;
+use bip39::{Language, Mnemonic};
 use cryptraits::{
     convert::{FromBytes, Len, ToVec},
     key::PublicKey as PublicKeyTrait,
@@ -55,6 +55,32 @@ impl WithPhrase for KeyPair {
         let public = secret.to_public();
 
         Ok(Self { secret, public })
+    }
+
+    fn generate_in_with<R>(
+        csprng: &mut R,
+        word_count: usize,
+        password: Option<&str>,
+    ) -> Result<(Self, String), Self::E>
+    where
+        Self: Sized,
+        R: RngCore + CryptoRng,
+    {
+        if word_count < 12 || word_count % 6 != 0 || word_count > 24 {
+            return Err(KeyPairError::MnemonicPhraseError(String::from(
+                "Bad word count",
+            )));
+        }
+
+        let entropy_bytes = (word_count / 3) * 4;
+        let mut entropy = [0u8; (24 / 3) * 4];
+        rand_core::RngCore::fill_bytes(csprng, &mut entropy[0..entropy_bytes]);
+        let phrase =
+            Mnemonic::from_entropy_in(Language::English, &entropy[0..entropy_bytes])?.to_string();
+
+        let keypair = Self::from_phrase(&phrase, password)?;
+
+        Ok((keypair, phrase))
     }
 }
 
@@ -153,6 +179,32 @@ impl WithPhrase for SecretKey {
         Self: Sized,
     {
         let phrase = Mnemonic::generate(word_count)?.to_string();
+        let secret_key = Self::from_phrase(&phrase, password)?;
+
+        Ok((secret_key, phrase))
+    }
+
+    fn generate_in_with<R>(
+        csprng: &mut R,
+        word_count: usize,
+        password: Option<&str>,
+    ) -> Result<(Self, String), Self::E>
+    where
+        Self: Sized,
+        R: RngCore + CryptoRng,
+    {
+        if word_count < 12 || word_count % 6 != 0 || word_count > 24 {
+            return Err(KeyPairError::MnemonicPhraseError(String::from(
+                "Bad word count",
+            )));
+        }
+
+        let entropy_bytes = (word_count / 3) * 4;
+        let mut entropy = [0u8; (24 / 3) * 4];
+        rand_core::RngCore::fill_bytes(csprng, &mut entropy[0..entropy_bytes]);
+        let phrase =
+            Mnemonic::from_entropy_in(Language::English, &entropy[0..entropy_bytes])?.to_string();
+
         let secret_key = Self::from_phrase(&phrase, password)?;
 
         Ok((secret_key, phrase))
@@ -481,6 +533,17 @@ mod tests {
     }
 
     #[test]
+    fn test_secret_key_generate_in_with_phrase() {
+        assert!(SecretKey::generate_in_with(&mut OsRng, 12, Some("sw0rdf1sh")).is_ok());
+
+        let (secret_key, phrase) = SecretKey::generate_with_phrase(12, Some("sw0rdf1sh")).unwrap();
+        let secret_key_bytes = secret_key.to_vec();
+        let secret_key = SecretKey::from_phrase(&phrase, Some("sw0rdf1sh")).unwrap();
+
+        assert_eq!(secret_key.to_vec(), secret_key_bytes);
+    }
+
+    #[test]
     fn test_keypair_from_phrase() {
         assert!(KeyPair::from_phrase("zzzzz", Some("sw0rdf1sh")).is_err());
 
@@ -504,6 +567,17 @@ mod tests {
     #[test]
     fn test_keypair_generate_with_phrase() {
         assert!(KeyPair::generate_with_phrase(12, Some("sw0rdf1sh")).is_ok());
+
+        let (keypair, phrase) = KeyPair::generate_with_phrase(12, Some("sw0rdf1sh")).unwrap();
+        let keypair_bytes = keypair.to_vec();
+        let keypair = KeyPair::from_phrase(&phrase, Some("sw0rdf1sh")).unwrap();
+
+        assert_eq!(keypair.to_vec(), keypair_bytes);
+    }
+
+    #[test]
+    fn test_keypair_generate_in_with_phrase() {
+        assert!(KeyPair::generate_in_with(&mut OsRng, 12, Some("sw0rdf1sh")).is_ok());
 
         let (keypair, phrase) = KeyPair::generate_with_phrase(12, Some("sw0rdf1sh")).unwrap();
         let keypair_bytes = keypair.to_vec();
