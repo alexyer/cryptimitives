@@ -6,3 +6,4 @@ pub mod errors;
 pub mod hmac;
 pub mod kdf;
 pub mod key;
+pub mod stream_cipher;
