@@ -4,7 +4,7 @@ use bip39::{Language, Mnemonic};
 use cryptraits::{
     convert::{FromBytes, Len, ToVec},
     key::PublicKey as PublicKeyTrait,
-    key::{SecretKey as SecretKeyTrait, SharedSecretKey, WithPhrase},
+    key::{Blind, SecretKey as SecretKeyTrait, SharedSecretKey, WithPhrase},
     key_exchange::DiffieHellman,
     signature::{Sign, Signature as SignatureTrait, Verify},
 };
@@ -17,6 +17,7 @@ use crate::errors::{KeyPairError, SignatureError};
 
 #[cfg(feature = "std")]
 use std::fmt::Debug;
+use std::ops::MulAssign;
 
 #[cfg(not(feature = "std"))]
 use alloc::fmt::Debug;
@@ -27,6 +28,27 @@ use alloc::string::String;
 use super::util::seed_from_entropy;
 
 pub type KeyPair = super::KeyPair<SecretKey>;
+
+impl Blind for KeyPair {
+    type E = KeyPairError;
+
+    fn blind(&mut self, blinding_factor: &[u8]) -> Result<(), Self::E> {
+        self.secret.blind(blinding_factor)?;
+        self.public = self.secret.to_public();
+
+        Ok(())
+    }
+
+    fn to_blind(&self, blinding_factor: &[u8]) -> Result<Self, Self::E>
+    where
+        Self: Sized,
+    {
+        let secret = self.secret.to_blind(blinding_factor)?;
+        let public = secret.to_public();
+
+        Ok(Self { secret, public })
+    }
+}
 
 impl WithPhrase for KeyPair {
     type E = KeyPairError;
@@ -104,6 +126,57 @@ impl SecretKeyTrait for SecretKey {
 
     fn generate() -> Self {
         Self::generate_with(&mut OsRng)
+    }
+}
+
+impl Blind for SecretKey {
+    type E = KeyPairError;
+
+    fn blind(&mut self, blinding_factor: &[u8]) -> Result<(), Self::E> {
+        // Blinding factor length should be equal to the secret key Scalar length.
+        if blinding_factor.len() != 32 {
+            return Err(KeyPairError::BytesLengthError);
+        }
+
+        let mut bytes = self.0.to_bytes();
+
+        let mut scalar = [0; 32];
+        scalar.copy_from_slice(&bytes[..32]);
+
+        let mut factor = [0; 32];
+        factor.copy_from_slice(blinding_factor);
+
+        let new_scalar = Scalar::from_bits(scalar) * Scalar::from_bits(factor);
+
+        bytes[..32].copy_from_slice(&new_scalar.to_bytes());
+
+        self.0 = schnorrkel::SecretKey::from_bytes(&bytes)?;
+
+        Ok(())
+    }
+
+    fn to_blind(&self, blinding_factor: &[u8]) -> Result<Self, Self::E>
+    where
+        Self: Sized,
+    {
+        // Blinding factor length should be equal to the secret key Scalar length.
+        if blinding_factor.len() != 32 {
+            return Err(KeyPairError::BytesLengthError);
+        }
+
+        let mut bytes = self.0.to_bytes();
+
+        let mut scalar = [0; 32];
+        scalar.copy_from_slice(&bytes[..32]);
+
+        let mut factor = [0; 32];
+        factor.copy_from_slice(blinding_factor);
+
+        let new_scalar = Scalar::from_bits(scalar) * Scalar::from_bits(factor);
+
+        bytes[..32].copy_from_slice(&new_scalar.to_bytes());
+
+        Ok(Self(schnorrkel::SecretKey::from_bytes(&bytes)?))
     }
 }
 
@@ -279,6 +352,45 @@ impl Verify for PublicKey {
     }
 }
 
+impl Blind for PublicKey {
+    type E = KeyPairError;
+
+    fn blind(&mut self, blinding_factor: &[u8]) -> Result<(), Self::E> {
+        // Blinding factor length should be equal to the secret key Scalar length.
+        if blinding_factor.len() != 32 {
+            return Err(KeyPairError::BytesLengthError);
+        }
+
+        let mut factor = [0; 32];
+        factor.copy_from_slice(blinding_factor);
+
+        let mut point = self.0.into_point();
+        point.mul_assign(Scalar::from_bits(factor));
+
+        self.0 = schnorrkel::PublicKey::from_point(point);
+
+        Ok(())
+    }
+
+    fn to_blind(&self, blinding_factor: &[u8]) -> Result<Self, Self::E>
+    where
+        Self: Sized,
+    {
+        // Blinding factor length should be equal to the secret key Scalar length.
+        if blinding_factor.len() != 32 {
+            return Err(KeyPairError::BytesLengthError);
+        }
+
+        let mut factor = [0; 32];
+        factor.copy_from_slice(blinding_factor);
+
+        let mut point = self.0.clone().into_point();
+        point.mul_assign(Scalar::from_bits(factor));
+
+        Ok(Self(schnorrkel::PublicKey::from_point(point)))
+    }
+}
+
 impl Debug for PublicKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("PublicKey")
@@ -432,7 +544,7 @@ mod tests {
     use crate::key::x25519_ristretto::KeyPair;
     use bip39::Mnemonic;
     use cryptraits::convert::{FromBytes, ToVec};
-    use cryptraits::key::{KeyPair as _, SecretKey as _, WithPhrase};
+    use cryptraits::key::{Blind, KeyPair as _, SecretKey as _, WithPhrase};
     use cryptraits::key_exchange::DiffieHellman;
     use cryptraits::signature::{Sign, Verify};
     use rand_core::OsRng;
@@ -584,5 +696,76 @@ mod tests {
         let keypair = KeyPair::from_phrase(&phrase, Some("sw0rdf1sh")).unwrap();
 
         assert_eq!(keypair.to_vec(), keypair_bytes);
+    }
+
+    #[test]
+    fn test_secret_key_blinding() {
+        let mut secret = SecretKey::from_phrase(
+            "trade open write rug piece company bonus tone crop pulse story craft rigid solar drama run coconut input crawl blush liar start oxygen smart", None).unwrap();
+
+        let blinding_factor = vec![
+            143, 50, 102, 65, 121, 149, 204, 85, 156, 141, 109, 158, 18, 78, 54, 192, 46, 72, 245,
+            101, 84, 67, 231, 80, 12, 178, 157, 87, 165, 252, 59, 4,
+        ];
+
+        assert!(secret.blind(&blinding_factor).is_ok());
+
+        let another_secret = SecretKey::from_phrase(
+            "trade open write rug piece company bonus tone crop pulse story craft rigid solar drama run coconut input crawl blush liar start oxygen smart", None).unwrap();
+
+        let blinded_secret = another_secret.to_blind(&blinding_factor).unwrap();
+
+        assert_ne!(another_secret.to_vec(), blinded_secret.to_vec());
+        assert_eq!(secret.to_vec(), blinded_secret.to_vec());
+    }
+
+    #[test]
+    fn test_public_key_blinding() {
+        let keypair = KeyPair::from_phrase(
+            "trade open write rug piece company bonus tone crop pulse story craft rigid solar drama run coconut input crawl blush liar start oxygen smart", None).unwrap();
+
+        let another_keypair = KeyPair::from_phrase(
+                "trade open write rug piece company bonus tone crop pulse story craft rigid solar drama run coconut input crawl blush liar start oxygen smart", None).unwrap();
+
+        let mut public = keypair.to_public();
+
+        let another_public = another_keypair.to_public();
+
+        assert_eq!(public.to_vec(), another_public.to_vec());
+
+        let blinding_factor = vec![
+            143, 50, 102, 65, 121, 149, 204, 85, 156, 141, 109, 158, 18, 78, 54, 192, 46, 72, 245,
+            101, 84, 67, 231, 80, 12, 178, 157, 87, 165, 252, 59, 4,
+        ];
+
+        assert!(public.blind(&blinding_factor).is_ok());
+
+        let blinded_public = another_public.to_blind(&blinding_factor).unwrap();
+
+        assert_ne!(another_public.to_vec(), blinded_public.to_vec());
+        assert_eq!(public.to_vec(), blinded_public.to_vec());
+    }
+
+    #[test]
+    fn test_public_keypair_blinding() {
+        let mut keypair = KeyPair::from_phrase(
+            "trade open write rug piece company bonus tone crop pulse story craft rigid solar drama run coconut input crawl blush liar start oxygen smart", None).unwrap();
+
+        let another_keypair = KeyPair::from_phrase(
+                "trade open write rug piece company bonus tone crop pulse story craft rigid solar drama run coconut input crawl blush liar start oxygen smart", None).unwrap();
+
+        assert_eq!(keypair.to_vec(), another_keypair.to_vec());
+
+        let blinding_factor = vec![
+            143, 50, 102, 65, 121, 149, 204, 85, 156, 141, 109, 158, 18, 78, 54, 192, 46, 72, 245,
+            101, 84, 67, 231, 80, 12, 178, 157, 87, 165, 252, 59, 4,
+        ];
+
+        assert!(keypair.blind(&blinding_factor).is_ok());
+
+        let blinded_keypair = another_keypair.to_blind(&blinding_factor).unwrap();
+
+        assert_ne!(another_keypair.to_vec(), blinded_keypair.to_vec());
+        assert_eq!(keypair.to_vec(), blinded_keypair.to_vec());
     }
 }

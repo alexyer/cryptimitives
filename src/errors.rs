@@ -19,6 +19,8 @@ pub enum KeyPairError {
     UnknownError(String),
     MnemonicPhraseError(String),
     InvalidEntropy,
+    ScalarFormatError,
+    EquationFalse,
 }
 
 /// HMAC algorithm errors.
@@ -49,5 +51,21 @@ pub enum SignatureError {
 impl From<bip39::Error> for KeyPairError {
     fn from(e: bip39::Error) -> Self {
         Self::MnemonicPhraseError(e.to_string())
+    }
+}
+
+impl From<schnorrkel::SignatureError> for KeyPairError {
+    fn from(e: schnorrkel::SignatureError) -> Self {
+        match e {
+            schnorrkel::SignatureError::EquationFalse => KeyPairError::EquationFalse,
+            schnorrkel::SignatureError::ScalarFormatError => KeyPairError::ScalarFormatError,
+            schnorrkel::SignatureError::BytesLengthError {
+                name: _,
+                description: _,
+                length: _,
+            } => KeyPairError::BytesLengthError,
+            schnorrkel::SignatureError::NotMarkedSchnorrkel => todo!(),
+            _ => KeyPairError::UnknownError(e.to_string()),
+        }
     }
 }
