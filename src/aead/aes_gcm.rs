@@ -5,11 +5,13 @@ use aes_gcm::{
     Key, NewAead, Nonce,
 };
 use cryptraits::aead::Aead;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::errors::AeadError;
 
 /// AES-GCM with a 256-bit key and 96-bit nonce.
-pub struct Aes256Gcm(::aes_gcm::Aes256Gcm);
+#[derive(Zeroize, ZeroizeOnDrop)]
+pub struct Aes256Gcm(#[zeroize(skip)] ::aes_gcm::Aes256Gcm);
 
 impl Aead for Aes256Gcm {
     type E = AeadError;

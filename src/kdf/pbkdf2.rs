@@ -3,15 +3,19 @@
 use std::marker::PhantomData;
 
 use cryptraits::{convert::Len, hmac::Hmac, kdf::Kdf as KdfTrait};
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::errors::KdfError;
 
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct Kdf<PRF>
 where
     PRF: Hmac + Len,
 {
     data: Vec<u8>,
     salt: Vec<u8>,
+
+    #[zeroize(skip)]
     _prf: PhantomData<PRF>,
 }
 
