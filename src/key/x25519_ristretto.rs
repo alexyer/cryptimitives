@@ -222,8 +222,8 @@ impl<'a> Sign for SecretKey {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub struct PublicKey(schnorrkel::PublicKey);
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Zeroize)]
+pub struct PublicKey(#[zeroize(skip)] schnorrkel::PublicKey);
 
 impl PublicKeyTrait for PublicKey {}
 
@@ -388,8 +388,8 @@ impl DiffieHellman for EphemeralSecretKey {
 }
 
 /// The public key derived from an ephemeral secret key.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct EphemeralPublicKey(schnorrkel::PublicKey);
+#[derive(Debug, Clone, Copy, PartialEq, Zeroize)]
+pub struct EphemeralPublicKey(#[zeroize(skip)] schnorrkel::PublicKey);
 
 impl PublicKeyTrait for EphemeralPublicKey {}
 

@@ -11,7 +11,7 @@ use zeroize::Zeroize;
 
 use crate::errors::KeyPairError;
 
-#[derive(Debug, PartialEq, Clone, Copy, Eq, Hash)]
+#[derive(Debug, PartialEq, Clone, Copy, Eq, Hash, Zeroize)]
 pub struct TestPublicKey([u8; 5]);
 
 impl PublicKey for TestPublicKey {}
