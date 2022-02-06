@@ -106,7 +106,7 @@ impl WithPhrase for KeyPair {
     }
 }
 
-#[derive(Zeroize, Debug)]
+#[derive(Zeroize, Debug, Clone)]
 #[zeroize(drop)]
 pub struct SecretKey(schnorrkel::SecretKey);
 
@@ -462,7 +462,7 @@ impl Len for SharedSecret {
     const LEN: usize = 32;
 }
 
-#[derive(Zeroize, Debug)]
+#[derive(Zeroize, Debug, Clone)]
 #[zeroize(drop)]
 /// A Diffie-Hellman secret key used to derive a shared secret when
 /// combined with a public key, that only exists for a short time.
@@ -767,5 +767,13 @@ mod tests {
 
         assert_ne!(another_keypair.to_vec(), blinded_keypair.to_vec());
         assert_eq!(keypair.to_vec(), blinded_keypair.to_vec());
+    }
+
+    #[test]
+    fn test_keypair_clone() {
+        let keypair = KeyPair::generate();
+        let clonned = keypair.clone();
+
+        assert_eq!(keypair.to_vec(), clonned.to_vec());
     }
 }

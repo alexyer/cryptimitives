@@ -46,7 +46,7 @@ impl ToVec for TestPublicKey {
     }
 }
 
-#[derive(Debug, Zeroize)]
+#[derive(Debug, Clone, Zeroize)]
 #[zeroize(drop)]
 pub struct TestSecretKey([u8; 5]);
 
