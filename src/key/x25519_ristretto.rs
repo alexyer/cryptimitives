@@ -11,6 +11,8 @@ use cryptraits::{
 use curve25519_dalek_ng::{ristretto::RistrettoPoint, scalar::Scalar};
 use rand_core::{CryptoRng, OsRng, RngCore};
 use schnorrkel::{ExpansionMode, MiniSecretKey};
+
+#[cfg(feature = "serde_derive")]
 use serde::{
     de::{Error, SeqAccess, Unexpected, Visitor},
     Deserialize, Serialize,
@@ -33,7 +35,7 @@ use super::util::seed_from_entropy;
 
 pub type KeyPair = super::KeyPair<SecretKey>;
 
-#[cfg(feature = "serde")]
+#[cfg(feature = "serde_derive")]
 impl Serialize for KeyPair {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -43,7 +45,7 @@ impl Serialize for KeyPair {
     }
 }
 
-#[cfg(feature = "serde")]
+#[cfg(feature = "serde_derive")]
 impl<'de> Deserialize<'de> for KeyPair {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -160,7 +162,7 @@ impl WithPhrase for KeyPair {
 #[zeroize(drop)]
 pub struct SecretKey(schnorrkel::SecretKey);
 
-#[cfg(feature = "serde")]
+#[cfg(feature = "serde_derive")]
 impl Serialize for SecretKey {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -170,7 +172,7 @@ impl Serialize for SecretKey {
     }
 }
 
-#[cfg(feature = "serde")]
+#[cfg(feature = "serde_derive")]
 impl<'de> Deserialize<'de> for SecretKey {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -396,7 +398,7 @@ pub struct PublicKey(#[zeroize(skip)] schnorrkel::PublicKey);
 
 impl PublicKeyTrait for PublicKey {}
 
-#[cfg(feature = "serde")]
+#[cfg(feature = "serde_derive")]
 impl Serialize for PublicKey {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -406,7 +408,7 @@ impl Serialize for PublicKey {
     }
 }
 
-#[cfg(feature = "serde")]
+#[cfg(feature = "serde_derive")]
 impl<'de> Deserialize<'de> for PublicKey {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -919,7 +921,7 @@ mod tests {
         assert_eq!(keypair.to_vec(), clonned.to_vec());
     }
 
-    #[cfg(feature = "serde")]
+    #[cfg(feature = "serde_derive")]
     #[test]
     fn test_secret_key_serde() {
         use serde::{Deserialize, Serialize, Serializer};
@@ -942,7 +944,7 @@ mod tests {
         assert_tokens(&secret, &tokens);
     }
 
-    #[cfg(feature = "serde")]
+    #[cfg(feature = "serde_derive")]
     #[test]
     fn test_public_key_serde() {
         use serde::{Deserialize, Serialize, Serializer};
@@ -965,7 +967,7 @@ mod tests {
         assert_tokens(&public, &tokens);
     }
 
-    #[cfg(feature = "serde")]
+    #[cfg(feature = "serde_derive")]
     #[test]
     fn test_keypair_serde() {
         use serde::{Deserialize, Serialize, Serializer};

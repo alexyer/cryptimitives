@@ -32,7 +32,7 @@ serde_test = "1.0.136"
 
 [features]
 default = ["std"]
-serde-serialize = ["serde"]
+serde_derive = ["serde"]
 std = [
     "cryptraits/std",
     "aes-gcm/std",
