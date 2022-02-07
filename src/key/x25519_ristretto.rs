@@ -11,6 +11,10 @@ use cryptraits::{
 use curve25519_dalek_ng::{ristretto::RistrettoPoint, scalar::Scalar};
 use rand_core::{CryptoRng, OsRng, RngCore};
 use schnorrkel::{ExpansionMode, MiniSecretKey};
+use serde::{
+    de::{Error, SeqAccess, Unexpected, Visitor},
+    Deserialize, Serialize,
+};
 use zeroize::Zeroize;
 
 use crate::errors::{KeyPairError, SignatureError};
@@ -28,6 +32,52 @@ use alloc::string::String;
 use super::util::seed_from_entropy;
 
 pub type KeyPair = super::KeyPair<SecretKey>;
+
+#[cfg(feature = "serde")]
+impl Serialize for KeyPair {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.to_vec().serialize(serializer)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> Deserialize<'de> for KeyPair {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct KeyPairVisitor;
+
+        impl<'de> Visitor<'de> for KeyPairVisitor {
+            type Value = KeyPair;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("Bytes")
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: SeqAccess<'de>,
+            {
+                let mut bytes = Vec::new();
+
+                while let Some(byte) = seq.next_element::<u8>()? {
+                    bytes.push(byte);
+                }
+
+                let keypair = KeyPair::from_bytes(&bytes)
+                    .or(Err(Error::invalid_type(Unexpected::Seq, &self)))?;
+
+                Ok(keypair)
+            }
+        }
+
+        deserializer.deserialize_byte_buf(KeyPairVisitor)
+    }
+}
 
 impl Blind for KeyPair {
     type E = KeyPairError;
@@ -106,9 +156,55 @@ impl WithPhrase for KeyPair {
     }
 }
 
-#[derive(Zeroize, Debug, Clone)]
+#[derive(Zeroize, Debug, Clone, PartialEq)]
 #[zeroize(drop)]
 pub struct SecretKey(schnorrkel::SecretKey);
+
+#[cfg(feature = "serde")]
+impl Serialize for SecretKey {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.to_vec().serialize(serializer)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> Deserialize<'de> for SecretKey {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct SecretKeyVisitor;
+
+        impl<'de> Visitor<'de> for SecretKeyVisitor {
+            type Value = SecretKey;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("Bytes")
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: SeqAccess<'de>,
+            {
+                let mut bytes = Vec::new();
+
+                while let Some(byte) = seq.next_element::<u8>()? {
+                    bytes.push(byte);
+                }
+
+                let secret = SecretKey::from_bytes(&bytes)
+                    .or(Err(Error::invalid_type(Unexpected::Seq, &self)))?;
+
+                Ok(secret)
+            }
+        }
+
+        deserializer.deserialize_byte_buf(SecretKeyVisitor)
+    }
+}
 
 impl SecretKeyTrait for SecretKey {
     type PK = PublicKey;
@@ -299,6 +395,52 @@ impl<'a> Sign for SecretKey {
 pub struct PublicKey(#[zeroize(skip)] schnorrkel::PublicKey);
 
 impl PublicKeyTrait for PublicKey {}
+
+#[cfg(feature = "serde")]
+impl Serialize for PublicKey {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.to_vec().serialize(serializer)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> Deserialize<'de> for PublicKey {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct PublicKeyVisitor;
+
+        impl<'de> Visitor<'de> for PublicKeyVisitor {
+            type Value = PublicKey;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("Bytes")
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: SeqAccess<'de>,
+            {
+                let mut bytes = Vec::new();
+
+                while let Some(byte) = seq.next_element::<u8>()? {
+                    bytes.push(byte);
+                }
+
+                let public = PublicKey::from_bytes(&bytes)
+                    .or(Err(Error::invalid_type(Unexpected::Seq, &self)))?;
+
+                Ok(public)
+            }
+        }
+
+        deserializer.deserialize_byte_buf(PublicKeyVisitor)
+    }
+}
 
 impl FromBytes for PublicKey {
     type E = KeyPairError;
@@ -775,5 +917,74 @@ mod tests {
         let clonned = keypair.clone();
 
         assert_eq!(keypair.to_vec(), clonned.to_vec());
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn test_secret_key_serde() {
+        use serde::{Deserialize, Serialize, Serializer};
+        use serde_test::{assert_tokens, Token};
+
+        let secret = SecretKey::from_phrase(
+            "trade open write rug piece company bonus tone crop pulse story craft rigid solar drama run coconut input crawl blush liar start oxygen smart",
+            Some("sw0rdf1sh")).unwrap();
+
+        let mut tokens = Vec::new();
+
+        tokens.push(Token::Seq { len: Some(64) });
+
+        for byte in secret.to_vec().into_iter() {
+            tokens.push(Token::U8(byte));
+        }
+
+        tokens.push(Token::SeqEnd);
+
+        assert_tokens(&secret, &tokens);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn test_public_key_serde() {
+        use serde::{Deserialize, Serialize, Serializer};
+        use serde_test::{assert_tokens, Token};
+
+        let public = SecretKey::from_phrase(
+            "trade open write rug piece company bonus tone crop pulse story craft rigid solar drama run coconut input crawl blush liar start oxygen smart",
+            Some("sw0rdf1sh")).unwrap().to_public();
+
+        let mut tokens = Vec::new();
+
+        tokens.push(Token::Seq { len: Some(32) });
+
+        for byte in public.to_vec().into_iter() {
+            tokens.push(Token::U8(byte));
+        }
+
+        tokens.push(Token::SeqEnd);
+
+        assert_tokens(&public, &tokens);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn test_keypair_serde() {
+        use serde::{Deserialize, Serialize, Serializer};
+        use serde_test::{assert_tokens, Token};
+
+        let keypair = KeyPair::from_phrase(
+            "trade open write rug piece company bonus tone crop pulse story craft rigid solar drama run coconut input crawl blush liar start oxygen smart",
+            Some("sw0rdf1sh")).unwrap();
+
+        let mut tokens = Vec::new();
+
+        tokens.push(Token::Seq { len: Some(96) });
+
+        for byte in keypair.to_vec().into_iter() {
+            tokens.push(Token::U8(byte));
+        }
+
+        tokens.push(Token::SeqEnd);
+
+        assert_tokens(&keypair, &tokens);
     }
 }

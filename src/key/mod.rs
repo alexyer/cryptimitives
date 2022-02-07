@@ -19,7 +19,7 @@ use crate::errors::{KeyPairError, SignatureError};
 pub mod util;
 pub mod x25519_ristretto;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct KeyPair<SK>
 where
     SK: SecretKey,
