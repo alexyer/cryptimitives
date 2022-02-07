@@ -1,7 +1,7 @@
 [package]
 name = "cryptimitives"
 license = "MIT"
-version = "0.14.2"
+version = "0.14.3"
 edition = "2021"
 authors = ["Oleksandr Yermakov <olexander.yermakov@gmail.com>"]
 categories = ["cryptography"]
@@ -22,7 +22,7 @@ hmac = {version = "0.12.0", default-features = false }
 rand_core = { version = "0.6.3", default-features = false }
 schnorrkel = { version = "0.10.2", default-features = false }
 sha2 = { version = "0.10.0", default-features = false }
-serde =  { version = "1.0.136", features = ["serde_derive"], optional = true }
+serde =  { version = "1.0.136", default-features = false, optional = true }
 zeroize = { version = "1.5.2", features = ["zeroize_derive"] }
 
 [dev-dependencies]
@@ -47,5 +47,6 @@ std = [
     "schnorrkel/getrandom",
     "curve25519-dalek-ng/std",
     "curve25519-dalek-ng/u64_backend",
+    "serde/std",
     "sha2/std"
 ]
