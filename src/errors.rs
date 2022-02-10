@@ -1,5 +1,6 @@
 //! Crate custom errors.
 
+#[cfg(feature = "std")]
 use std::fmt::Display;
 
 use cryptraits_macros::Error;
@@ -72,38 +73,62 @@ impl From<schnorrkel::SignatureError> for KeyPairError {
     }
 }
 
+#[cfg(feature = "std")]
 impl Display for AeadError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("AeadError")
     }
 }
 
+#[cfg(feature = "std")]
 impl Display for KdfError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&format!("KdfError::{:?}", self))
     }
 }
 
+#[cfg(feature = "std")]
 impl Display for KeyPairError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&format!("KeyPairError::{:?}", self))
     }
 }
 
+#[cfg(feature = "std")]
 impl Display for HmacError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&format!("HmacError::{:?}", self))
     }
 }
 
+#[cfg(feature = "std")]
 impl Display for StreamCipherError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&format!("StreamCipherError::{:?}", self))
     }
 }
 
+#[cfg(feature = "std")]
 impl Display for SignatureError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&format!("SignatureErrors::{:?}", self))
     }
 }
+
+#[cfg(feature = "std")]
+impl std::error::Error for AeadError {}
+
+#[cfg(feature = "std")]
+impl std::error::Error for KdfError {}
+
+#[cfg(feature = "std")]
+impl std::error::Error for KeyPairError {}
+
+#[cfg(feature = "std")]
+impl std::error::Error for HmacError {}
+
+#[cfg(feature = "std")]
+impl std::error::Error for StreamCipherError {}
+
+#[cfg(feature = "std")]
+impl std::error::Error for SignatureError {}
