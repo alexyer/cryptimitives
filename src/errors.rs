@@ -1,5 +1,7 @@
 //! Crate custom errors.
 
+use std::fmt::Display;
+
 use cryptraits_macros::Error;
 
 /// AEAD algorithm error.
@@ -67,5 +69,41 @@ impl From<schnorrkel::SignatureError> for KeyPairError {
             schnorrkel::SignatureError::NotMarkedSchnorrkel => todo!(),
             _ => KeyPairError::UnknownError(e.to_string()),
         }
+    }
+}
+
+impl Display for AeadError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("AeadError")
+    }
+}
+
+impl Display for KdfError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&format!("KdfError::{:?}", self))
+    }
+}
+
+impl Display for KeyPairError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&format!("KeyPairError::{:?}", self))
+    }
+}
+
+impl Display for HmacError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&format!("HmacError::{:?}", self))
+    }
+}
+
+impl Display for StreamCipherError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&format!("StreamCipherError::{:?}", self))
+    }
+}
+
+impl Display for SignatureError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&format!("SignatureErrors::{:?}", self))
     }
 }
