@@ -183,3 +183,14 @@ where
         Self { secret, public }
     }
 }
+
+impl<SK> From<SK> for KeyPair<SK>
+where
+    SK: SecretKey,
+{
+    fn from(secret: SK) -> Self {
+        let public = secret.to_public();
+
+        Self { secret, public }
+    }
+}

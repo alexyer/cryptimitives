@@ -989,4 +989,12 @@ mod tests {
 
         assert_tokens(&keypair, &tokens);
     }
+
+    #[test]
+    fn test_keypair_from_secret() {
+        let secret = SecretKey::generate();
+        let keypair = KeyPair::from(secret.clone());
+
+        assert_eq!(keypair.secret(), &secret);
+    }
 }
