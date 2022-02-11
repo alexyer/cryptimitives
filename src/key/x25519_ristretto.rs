@@ -162,6 +162,13 @@ impl WithPhrase for KeyPair {
 #[zeroize(drop)]
 pub struct SecretKey(schnorrkel::SecretKey);
 
+impl SecretKey {
+    /// Convert this SecretKey into an array of 64 bytes, corresponding to an Ed25519 expanded secret key.
+    pub fn to_ed25519_bytes(&self) -> Vec<u8> {
+        Vec::from(self.0.to_ed25519_bytes())
+    }
+}
+
 #[cfg(feature = "serde_derive")]
 impl Serialize for SecretKey {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
