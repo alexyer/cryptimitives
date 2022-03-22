@@ -3,7 +3,7 @@
 use cryptraits::{
     convert::{FromBytes, Len, ToVec},
     kdf::Kdf,
-    key::{PublicKey, SecretKey},
+    key::{Generate, PublicKey, SecretKey},
     signature::Signature,
 };
 use rand_core::{CryptoRng, RngCore};
@@ -53,14 +53,16 @@ pub struct TestSecretKey([u8; 5]);
 impl SecretKey for TestSecretKey {
     type PK = TestPublicKey;
 
+    fn to_public(&self) -> Self::PK {
+        todo!()
+    }
+}
+
+impl Generate for TestSecretKey {
     fn generate_with<R: CryptoRng + RngCore>(_csprng: R) -> Self
     where
         Self: Sized,
     {
-        todo!()
-    }
-
-    fn to_public(&self) -> Self::PK {
         todo!()
     }
 

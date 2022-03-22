@@ -24,6 +24,7 @@ pub enum KeyPairError {
     InvalidEntropy,
     ScalarFormatError,
     EquationFalse,
+    SignatureError,
 }
 
 /// HMAC algorithm errors.
@@ -70,6 +71,18 @@ impl From<schnorrkel::SignatureError> for KeyPairError {
             schnorrkel::SignatureError::NotMarkedSchnorrkel => todo!(),
             _ => KeyPairError::UnknownError(e.to_string()),
         }
+    }
+}
+
+impl From<ed25519_dalek::ed25519::Error> for KeyPairError {
+    fn from(_: ed25519_dalek::ed25519::Error) -> Self {
+        Self::SignatureError
+    }
+}
+
+impl From<ed25519_dalek::ed25519::Error> for SignatureError {
+    fn from(_: ed25519_dalek::ed25519::Error) -> Self {
+        Self::EquationFalse
     }
 }
 

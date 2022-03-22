@@ -6,7 +6,7 @@ use alloc::fmt::Debug;
 
 use cryptraits::{
     convert::{FromBytes, Len, ToVec},
-    key::{KeyPair as KeypairTrait, SecretKey},
+    key::{Generate, KeyPair as KeypairTrait, SecretKey},
     key_exchange::DiffieHellman,
     signature::{Sign, Verify},
 };
@@ -16,6 +16,7 @@ use zeroize::Zeroize;
 
 use crate::errors::{KeyPairError, SignatureError};
 
+pub mod ed25519;
 pub mod util;
 pub mod x25519_ristretto;
 
@@ -42,16 +43,6 @@ where
 {
     type SK = SK;
 
-    fn generate_with<R>(csprng: R) -> Self
-    where
-        R: CryptoRng + RngCore,
-    {
-        let secret: SK = SK::generate_with(csprng);
-        let public = secret.to_public();
-
-        KeyPair { secret, public }
-    }
-
     fn public(&self) -> &<Self::SK as SecretKey>::PK {
         &self.public
     }
@@ -62,6 +53,21 @@ where
 
     fn secret(&self) -> &Self::SK {
         &self.secret
+    }
+}
+
+impl<SK> Generate for KeyPair<SK>
+where
+    SK: SecretKey + Generate,
+{
+    fn generate_with<R>(csprng: R) -> Self
+    where
+        R: CryptoRng + RngCore,
+    {
+        let secret: SK = SK::generate_with(csprng);
+        let public = secret.to_public();
+
+        KeyPair { secret, public }
     }
 
     fn generate() -> Self {
@@ -174,10 +180,10 @@ where
 
 impl<SK> Default for KeyPair<SK>
 where
-    SK: SecretKey,
+    SK: SecretKey + Generate,
 {
     fn default() -> Self {
-        let secret: SK = SecretKey::generate_with(OsRng);
+        let secret = SK::generate_with(OsRng);
         let public = secret.to_public();
 
         Self { secret, public }

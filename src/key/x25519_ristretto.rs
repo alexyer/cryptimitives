@@ -4,7 +4,7 @@ use bip39::{Language, Mnemonic};
 use cryptraits::{
     convert::{FromBytes, Len, ToVec},
     key::PublicKey as PublicKeyTrait,
-    key::{Blind, SecretKey as SecretKeyTrait, SharedSecretKey, WithPhrase},
+    key::{Blind, Generate, SecretKey as SecretKeyTrait, SharedSecretKey, WithPhrase},
     key_exchange::DiffieHellman,
     signature::{Sign, Signature as SignatureTrait, Verify},
 };
@@ -218,15 +218,17 @@ impl<'de> Deserialize<'de> for SecretKey {
 impl SecretKeyTrait for SecretKey {
     type PK = PublicKey;
 
+    fn to_public(&self) -> Self::PK {
+        PublicKey(self.0.to_public())
+    }
+}
+
+impl Generate for SecretKey {
     fn generate_with<R: CryptoRng + RngCore>(csprng: R) -> Self
     where
         Self: Sized,
     {
         Self(schnorrkel::SecretKey::generate_with(csprng))
-    }
-
-    fn to_public(&self) -> Self::PK {
-        PublicKey(self.0.to_public())
     }
 
     fn generate() -> Self {
@@ -622,19 +624,21 @@ pub struct EphemeralSecretKey(schnorrkel::SecretKey);
 impl SecretKeyTrait for EphemeralSecretKey {
     type PK = EphemeralPublicKey;
 
+    fn to_public(&self) -> Self::PK {
+        EphemeralPublicKey(self.0.to_public())
+    }
+}
+
+impl Generate for EphemeralSecretKey {
+    fn generate() -> Self {
+        Self::generate_with(&mut OsRng)
+    }
+
     fn generate_with<R: CryptoRng + RngCore>(csprng: R) -> Self
     where
         Self: Sized,
     {
         Self(schnorrkel::SecretKey::generate_with(csprng))
-    }
-
-    fn to_public(&self) -> Self::PK {
-        EphemeralPublicKey(self.0.to_public())
-    }
-
-    fn generate() -> Self {
-        Self::generate_with(&mut OsRng)
     }
 }
 
@@ -695,7 +699,7 @@ mod tests {
     use crate::key::x25519_ristretto::KeyPair;
     use bip39::Mnemonic;
     use cryptraits::convert::{FromBytes, ToVec};
-    use cryptraits::key::{Blind, KeyPair as _, SecretKey as _, WithPhrase};
+    use cryptraits::key::{Blind, Generate, KeyPair as _, SecretKey as _, WithPhrase};
     use cryptraits::key_exchange::DiffieHellman;
     use cryptraits::signature::{Sign, Verify};
     use rand_core::OsRng;
