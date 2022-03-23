@@ -21,17 +21,13 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "std")]
 use std::fmt::Debug;
 
-#[cfg(feature = "std")]
-use std::hash::Hash;
+use core::hash::Hash;
 use std::ops::MulAssign;
 
 use zeroize::Zeroize;
 
 #[cfg(not(feature = "std"))]
 use alloc::fmt::Debug;
-
-#[cfg(not(feature = "std"))]
-use alloc::string::String;
 
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
