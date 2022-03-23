@@ -280,8 +280,16 @@ impl<'de> Deserialize<'de> for SecretKey {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Zeroize)]
+#[derive(Clone, Copy, PartialEq, Eq, Zeroize)]
 pub struct PublicKey(#[zeroize(skip)] ed25519_dalek::PublicKey);
+
+impl Debug for PublicKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("PublicKey")
+            .field(&hex::encode(self.to_vec()))
+            .finish()
+    }
+}
 
 impl Hash for PublicKey {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
