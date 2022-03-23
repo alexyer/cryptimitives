@@ -12,6 +12,12 @@ use curve25519_dalek_ng::montgomery::MontgomeryPoint;
 use curve25519_dalek_ng::scalar::Scalar;
 use ed25519_dalek::Verifier;
 
+#[cfg(feature = "serde_derive")]
+use serde::de::{Error, SeqAccess, Unexpected, Visitor};
+
+#[cfg(feature = "serde_derive")]
+use serde::{Deserialize, Serialize};
+
 #[cfg(feature = "std")]
 use std::fmt::Debug;
 
@@ -33,6 +39,52 @@ use alloc::vec::Vec;
 use crate::errors::{KeyPairError, SignatureError};
 
 pub type KeyPair = super::KeyPair<SecretKey>;
+
+#[cfg(feature = "serde_derive")]
+impl Serialize for KeyPair {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.to_vec().serialize(serializer)
+    }
+}
+
+#[cfg(feature = "serde_derive")]
+impl<'de> Deserialize<'de> for KeyPair {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct KeyPairVisitor;
+
+        impl<'de> Visitor<'de> for KeyPairVisitor {
+            type Value = KeyPair;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("Bytes")
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: SeqAccess<'de>,
+            {
+                let mut bytes = Vec::new();
+
+                while let Some(byte) = seq.next_element::<u8>()? {
+                    bytes.push(byte);
+                }
+
+                let keypair = KeyPair::from_bytes(&bytes)
+                    .or(Err(Error::invalid_type(Unexpected::Seq, &self)))?;
+
+                Ok(keypair)
+            }
+        }
+
+        deserializer.deserialize_byte_buf(KeyPairVisitor)
+    }
+}
 
 impl Blind for KeyPair {
     type E = KeyPairError;
@@ -186,6 +238,52 @@ impl Blind for SecretKey {
     }
 }
 
+#[cfg(feature = "serde_derive")]
+impl Serialize for SecretKey {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.to_vec().serialize(serializer)
+    }
+}
+
+#[cfg(feature = "serde_derive")]
+impl<'de> Deserialize<'de> for SecretKey {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct SecretKeyVisitor;
+
+        impl<'de> Visitor<'de> for SecretKeyVisitor {
+            type Value = SecretKey;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("Bytes")
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: SeqAccess<'de>,
+            {
+                let mut bytes = Vec::new();
+
+                while let Some(byte) = seq.next_element::<u8>()? {
+                    bytes.push(byte);
+                }
+
+                let secret = SecretKey::from_bytes(&bytes)
+                    .or(Err(Error::invalid_type(Unexpected::Seq, &self)))?;
+
+                Ok(secret)
+            }
+        }
+
+        deserializer.deserialize_byte_buf(SecretKeyVisitor)
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Zeroize)]
 pub struct PublicKey(#[zeroize(skip)] ed25519_dalek::PublicKey);
 
@@ -271,6 +369,52 @@ impl Blind for PublicKey {
         Ok(Self(
             ed25519_dalek::PublicKey::from_bytes(&point.compress().to_bytes()).unwrap(),
         ))
+    }
+}
+
+#[cfg(feature = "serde_derive")]
+impl Serialize for PublicKey {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.to_vec().serialize(serializer)
+    }
+}
+
+#[cfg(feature = "serde_derive")]
+impl<'de> Deserialize<'de> for PublicKey {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct PublicKeyVisitor;
+
+        impl<'de> Visitor<'de> for PublicKeyVisitor {
+            type Value = PublicKey;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("Bytes")
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: SeqAccess<'de>,
+            {
+                let mut bytes = Vec::new();
+
+                while let Some(byte) = seq.next_element::<u8>()? {
+                    bytes.push(byte);
+                }
+
+                let public = PublicKey::from_bytes(&bytes)
+                    .or(Err(Error::invalid_type(Unexpected::Seq, &self)))?;
+
+                Ok(public)
+            }
+        }
+
+        deserializer.deserialize_byte_buf(PublicKeyVisitor)
     }
 }
 
@@ -455,5 +599,65 @@ mod tests {
 
         assert_ne!(another_keypair.to_vec(), blinded_keypair.to_vec());
         assert_eq!(keypair.to_vec(), blinded_keypair.to_vec());
+    }
+
+    #[cfg(feature = "serde_derive")]
+    #[test]
+    fn test_secret_key_serde() {
+        use serde_test::{assert_tokens, Token};
+
+        let secret = KeyPair::from_bytes(&ALICE).unwrap().secret().clone();
+
+        let mut tokens = Vec::new();
+
+        tokens.push(Token::Seq { len: Some(32) });
+
+        for byte in secret.to_vec().into_iter() {
+            tokens.push(Token::U8(byte));
+        }
+
+        tokens.push(Token::SeqEnd);
+
+        assert_tokens(&secret, &tokens);
+    }
+
+    #[cfg(feature = "serde_derive")]
+    #[test]
+    fn test_public_key_serde() {
+        use serde_test::{assert_tokens, Token};
+
+        let public = KeyPair::from_bytes(&ALICE).unwrap().to_public();
+
+        let mut tokens = Vec::new();
+
+        tokens.push(Token::Seq { len: Some(32) });
+
+        for byte in public.to_vec().into_iter() {
+            tokens.push(Token::U8(byte));
+        }
+
+        tokens.push(Token::SeqEnd);
+
+        assert_tokens(&public, &tokens);
+    }
+
+    #[cfg(feature = "serde_derive")]
+    #[test]
+    fn test_keypair_serde() {
+        use serde_test::{assert_tokens, Token};
+
+        let keypair = KeyPair::from_bytes(&ALICE).unwrap();
+
+        let mut tokens = Vec::new();
+
+        tokens.push(Token::Seq { len: Some(64) });
+
+        for byte in keypair.to_vec().into_iter() {
+            tokens.push(Token::U8(byte));
+        }
+
+        tokens.push(Token::SeqEnd);
+
+        assert_tokens(&keypair, &tokens);
     }
 }
