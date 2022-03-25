@@ -1,15 +1,10 @@
 //! Curve25519 Edwards point.
 use cryptraits::convert::{FromBytes, Len, ToVec};
-use cryptraits::key::{Blind, SharedSecretKey};
-use cryptraits::key_exchange::DiffieHellman;
 use cryptraits::signature::{Sign, Verify};
 use cryptraits::{
     key::{PublicKey as PublicKeyTrait, SecretKey as SecretKeyTrait},
     signature::Signature as SignatureTrait,
 };
-use curve25519_dalek_ng::edwards::CompressedEdwardsY;
-use curve25519_dalek_ng::montgomery::MontgomeryPoint;
-use curve25519_dalek_ng::scalar::Scalar;
 use ed25519_dalek::Verifier;
 
 #[cfg(feature = "serde_derive")]
@@ -22,7 +17,6 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
 use core::hash::Hash;
-use std::ops::MulAssign;
 
 use zeroize::Zeroize;
 
@@ -82,30 +76,15 @@ impl<'de> Deserialize<'de> for KeyPair {
     }
 }
 
-impl Blind for KeyPair {
-    type E = KeyPairError;
+#[derive(Zeroize)]
+#[zeroize(drop)]
+pub struct SecretKey(ed25519_dalek::ExpandedSecretKey);
 
-    fn blind(&mut self, blinding_factor: &[u8]) -> Result<(), Self::E> {
-        self.secret.blind(blinding_factor)?;
-        self.public = self.secret.to_public();
-
-        Ok(())
-    }
-
-    fn to_blind(&self, blinding_factor: &[u8]) -> Result<Self, Self::E>
-    where
-        Self: Sized,
-    {
-        let secret = self.secret.to_blind(blinding_factor)?;
-        let public = secret.to_public();
-
-        Ok(Self { secret, public })
+impl Debug for SecretKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("SecretKey").field(&self.to_vec()).finish()
     }
 }
-
-#[derive(Zeroize, Debug)]
-#[zeroize(drop)]
-pub struct SecretKey(ed25519_dalek::SecretKey);
 
 impl SecretKeyTrait for SecretKey {
     type PK = PublicKey;
@@ -117,18 +96,18 @@ impl SecretKeyTrait for SecretKey {
 
 impl Clone for SecretKey {
     fn clone(&self) -> Self {
-        Self(ed25519_dalek::SecretKey::from_bytes(self.0.as_bytes()).unwrap())
+        Self(ed25519_dalek::ExpandedSecretKey::from_bytes(&self.0.to_bytes()).unwrap())
     }
 }
 
 impl PartialEq for SecretKey {
     fn eq(&self, other: &Self) -> bool {
-        self.0.as_bytes() == other.0.as_bytes()
+        self.0.to_bytes() == other.0.to_bytes()
     }
 }
 
 impl Len for SecretKey {
-    const LEN: usize = 32;
+    const LEN: usize = 64;
 }
 
 impl FromBytes for SecretKey {
@@ -138,7 +117,7 @@ impl FromBytes for SecretKey {
     where
         Self: Sized,
     {
-        let secret = ed25519_dalek::SecretKey::from_bytes(bytes)?;
+        let secret = ed25519_dalek::ExpandedSecretKey::from_bytes(bytes)?;
         Ok(Self(secret))
     }
 }
@@ -159,78 +138,7 @@ impl<'a> Sign for SecretKey {
     where
         Self: Sized,
     {
-        let expanded: ed25519_dalek::ExpandedSecretKey = (&self.0).into();
-        Signature(expanded.sign(&data, &(&self.0).into()))
-    }
-}
-
-impl DiffieHellman for SecretKey {
-    type SSK = SharedSecret;
-    type PK = PublicKey;
-
-    fn diffie_hellman(&self, peer_public: &Self::PK) -> Self::SSK {
-        let mut secret_bytes: [u8; 32] = [0; 32];
-
-        secret_bytes.copy_from_slice(&self.0.to_bytes()[..32]);
-
-        let scalar = Scalar::from_canonical_bytes(secret_bytes).unwrap();
-        let point = CompressedEdwardsY(peer_public.0.to_bytes())
-            .decompress()
-            .unwrap()
-            .to_montgomery();
-
-        SharedSecret(scalar * point)
-    }
-}
-
-impl Blind for SecretKey {
-    type E = KeyPairError;
-
-    fn blind(&mut self, blinding_factor: &[u8]) -> Result<(), Self::E> {
-        // Blinding factor length should be equal to the secret key Scalar length.
-        if blinding_factor.len() != 32 {
-            return Err(KeyPairError::BytesLengthError);
-        }
-
-        let mut bytes = self.0.to_bytes();
-
-        let mut scalar = [0; 32];
-        scalar.copy_from_slice(&bytes[..32]);
-
-        let mut factor = [0; 32];
-        factor.copy_from_slice(blinding_factor);
-
-        let new_scalar = Scalar::from_bits(scalar) * Scalar::from_bits(factor);
-
-        bytes[..32].copy_from_slice(&new_scalar.to_bytes());
-
-        self.0 = ed25519_dalek::SecretKey::from_bytes(&bytes[..32])?;
-
-        Ok(())
-    }
-
-    fn to_blind(&self, blinding_factor: &[u8]) -> Result<Self, Self::E>
-    where
-        Self: Sized,
-    {
-        // Blinding factor length should be equal to the secret key Scalar length.
-        if blinding_factor.len() != 32 {
-            return Err(KeyPairError::BytesLengthError);
-        }
-
-        let mut bytes = self.0.to_bytes();
-
-        let mut scalar = [0; 32];
-        scalar.copy_from_slice(&bytes[..32]);
-
-        let mut factor = [0; 32];
-        factor.copy_from_slice(blinding_factor);
-
-        let new_scalar = Scalar::from_bits(scalar) * Scalar::from_bits(factor);
-
-        bytes[..32].copy_from_slice(&new_scalar.to_bytes());
-
-        Ok(Self(ed25519_dalek::SecretKey::from_bytes(&bytes[..32])?))
+        Signature(self.0.sign(&data, &(&self.0).into()))
     }
 }
 
@@ -335,47 +243,6 @@ impl Verify for PublicKey {
     }
 }
 
-impl Blind for PublicKey {
-    type E = KeyPairError;
-
-    fn blind(&mut self, blinding_factor: &[u8]) -> Result<(), Self::E> {
-        // Blinding factor length should be equal to the secret key Scalar length.
-        if blinding_factor.len() != 32 {
-            return Err(KeyPairError::BytesLengthError);
-        }
-
-        let mut factor = [0; 32];
-        factor.copy_from_slice(blinding_factor);
-
-        let mut point = CompressedEdwardsY(self.0.to_bytes()).decompress().unwrap();
-        point.mul_assign(Scalar::from_bits(factor));
-
-        self.0 = ed25519_dalek::PublicKey::from_bytes(&point.compress().to_bytes()).unwrap();
-
-        Ok(())
-    }
-
-    fn to_blind(&self, blinding_factor: &[u8]) -> Result<Self, Self::E>
-    where
-        Self: Sized,
-    {
-        // Blinding factor length should be equal to the secret key Scalar length.
-        if blinding_factor.len() != 32 {
-            return Err(KeyPairError::BytesLengthError);
-        }
-
-        let mut factor = [0; 32];
-        factor.copy_from_slice(blinding_factor);
-
-        let mut point = CompressedEdwardsY(self.0.to_bytes()).decompress().unwrap();
-        point.mul_assign(Scalar::from_bits(factor));
-
-        Ok(Self(
-            ed25519_dalek::PublicKey::from_bytes(&point.compress().to_bytes()).unwrap(),
-        ))
-    }
-}
-
 #[cfg(feature = "serde_derive")]
 impl Serialize for PublicKey {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -450,31 +317,6 @@ impl ToVec for Signature {
         Vec::from(self.0.to_bytes())
     }
 }
-
-/// A Diffie-Hellman shared secret derived from an `EphemeralSecretKey`
-/// and the other party's `PublicKey`.
-pub struct SharedSecret(MontgomeryPoint);
-impl SharedSecretKey for SharedSecret {}
-
-impl From<SharedSecret> for [u8; 32] {
-    fn from(shared_secret: SharedSecret) -> Self {
-        shared_secret.0.to_bytes()
-    }
-}
-
-impl ToVec for SharedSecret {
-    fn to_vec(&self) -> Vec<u8>
-    where
-        Self: Sized,
-    {
-        Vec::from(self.0.to_bytes())
-    }
-}
-
-impl Len for SharedSecret {
-    const LEN: usize = 32;
-}
-
 #[cfg(test)]
 mod tests {
     use crate::{
@@ -483,24 +325,26 @@ mod tests {
     };
     use cryptraits::{
         convert::{FromBytes, ToVec},
-        key::{Blind, Generate, KeyPair as _},
+        key::{Generate, KeyPair as _},
         signature::{Sign, Verify},
     };
 
     use super::SecretKey;
 
-    const ALICE: [u8; 64] = [
-        160, 238, 129, 16, 105, 33, 213, 166, 178, 49, 108, 143, 6, 85, 228, 70, 44, 96, 252, 37,
-        227, 67, 54, 189, 0, 234, 29, 15, 93, 4, 210, 107, 157, 216, 224, 144, 215, 13, 69, 102,
-        243, 45, 194, 240, 80, 66, 122, 78, 126, 227, 9, 187, 166, 159, 170, 15, 47, 52, 172, 59,
-        87, 20, 194, 6,
+    const ALICE: [u8; 96] = [
+        24, 96, 63, 231, 236, 136, 164, 225, 105, 202, 11, 198, 122, 20, 82, 211, 7, 123, 242, 95,
+        196, 12, 125, 239, 30, 213, 142, 152, 44, 190, 208, 114, 219, 196, 254, 31, 193, 139, 137,
+        179, 134, 57, 239, 57, 136, 47, 200, 220, 133, 163, 62, 113, 192, 43, 117, 234, 84, 54, 80,
+        32, 109, 230, 181, 34, 228, 20, 176, 204, 111, 171, 211, 222, 35, 93, 59, 130, 87, 43, 211,
+        240, 152, 245, 205, 241, 214, 228, 202, 182, 62, 70, 230, 244, 33, 77, 237, 60,
     ];
 
-    const BOB: [u8; 64] = [
-        200, 179, 165, 85, 124, 194, 171, 142, 172, 121, 1, 12, 69, 172, 146, 243, 191, 201, 117,
-        174, 71, 101, 63, 21, 113, 79, 168, 62, 167, 110, 140, 110, 86, 97, 134, 139, 3, 83, 167,
-        161, 110, 209, 147, 218, 205, 234, 105, 215, 150, 132, 4, 73, 11, 109, 131, 132, 5, 249,
-        111, 188, 152, 67, 44, 82,
+    const BOB: [u8; 96] = [
+        56, 36, 219, 22, 94, 68, 246, 204, 121, 18, 213, 150, 205, 112, 138, 10, 55, 15, 30, 205,
+        107, 246, 104, 215, 142, 131, 242, 58, 67, 51, 47, 52, 32, 25, 135, 101, 169, 189, 245, 47,
+        104, 215, 211, 85, 82, 92, 50, 116, 113, 159, 117, 134, 151, 85, 221, 211, 53, 81, 31, 51,
+        123, 46, 0, 26, 186, 109, 157, 40, 129, 127, 220, 84, 204, 251, 238, 87, 99, 176, 115, 51,
+        16, 169, 199, 33, 242, 3, 230, 66, 106, 41, 84, 238, 51, 47, 208, 48,
     ];
 
     #[test]
@@ -518,8 +362,8 @@ mod tests {
         let ristretto_keypair = x25519_ristretto::KeyPair::generate();
         let secret_bytes = ristretto_keypair.secret.to_ed25519_bytes();
 
-        let alice = SecretKey::from_bytes(&secret_bytes[..32]).unwrap();
-        let bob = SecretKey::from_bytes(&secret_bytes[..32]).unwrap();
+        let alice = SecretKey::from_bytes(&secret_bytes).unwrap();
+        let bob = SecretKey::from_bytes(&secret_bytes).unwrap();
 
         assert_eq!(alice, bob);
     }
@@ -542,69 +386,6 @@ mod tests {
         assert!(alice_public.verify(MSG, &signature).is_ok());
     }
 
-    #[test]
-    fn test_secret_key_blinding() {
-        let mut secret = SecretKey::from_bytes(&ALICE[..32]).unwrap();
-
-        let blinding_factor = vec![
-            143, 50, 102, 65, 121, 149, 204, 85, 156, 141, 109, 158, 18, 78, 54, 192, 46, 72, 245,
-            101, 84, 67, 231, 80, 12, 178, 157, 87, 165, 252, 59, 4,
-        ];
-
-        assert!(secret.blind(&blinding_factor).is_ok());
-
-        let another_secret = SecretKey::from_bytes(&ALICE[..32]).unwrap();
-
-        let blinded_secret = another_secret.to_blind(&blinding_factor).unwrap();
-
-        assert_ne!(another_secret.to_vec(), blinded_secret.to_vec());
-        assert_eq!(secret.to_vec(), blinded_secret.to_vec());
-    }
-
-    #[test]
-    fn test_public_key_blinding() {
-        let keypair = KeyPair::from_bytes(&ALICE).unwrap();
-        let another_keypair = KeyPair::from_bytes(&ALICE).unwrap();
-
-        let mut public = keypair.to_public();
-
-        let another_public = another_keypair.to_public();
-
-        assert_eq!(public.to_vec(), another_public.to_vec());
-
-        let blinding_factor = vec![
-            143, 50, 102, 65, 121, 149, 204, 85, 156, 141, 109, 158, 18, 78, 54, 192, 46, 72, 245,
-            101, 84, 67, 231, 80, 12, 178, 157, 87, 165, 252, 59, 4,
-        ];
-
-        assert!(public.blind(&blinding_factor).is_ok());
-
-        let blinded_public = another_public.to_blind(&blinding_factor).unwrap();
-
-        assert_ne!(another_public.to_vec(), blinded_public.to_vec());
-        assert_eq!(public.to_vec(), blinded_public.to_vec());
-    }
-
-    #[test]
-    fn test_keypair_blinding() {
-        let mut keypair = KeyPair::from_bytes(&ALICE).unwrap();
-        let another_keypair = KeyPair::from_bytes(&ALICE).unwrap();
-
-        assert_eq!(keypair.to_vec(), another_keypair.to_vec());
-
-        let blinding_factor = vec![
-            143, 50, 102, 65, 121, 149, 204, 85, 156, 141, 109, 158, 18, 78, 54, 192, 46, 72, 245,
-            101, 84, 67, 231, 80, 12, 178, 157, 87, 165, 252, 59, 4,
-        ];
-
-        assert!(keypair.blind(&blinding_factor).is_ok());
-
-        let blinded_keypair = another_keypair.to_blind(&blinding_factor).unwrap();
-
-        assert_ne!(another_keypair.to_vec(), blinded_keypair.to_vec());
-        assert_eq!(keypair.to_vec(), blinded_keypair.to_vec());
-    }
-
     #[cfg(feature = "serde_derive")]
     #[test]
     fn test_secret_key_serde() {
@@ -614,7 +395,7 @@ mod tests {
 
         let mut tokens = Vec::new();
 
-        tokens.push(Token::Seq { len: Some(32) });
+        tokens.push(Token::Seq { len: Some(64) });
 
         for byte in secret.to_vec().into_iter() {
             tokens.push(Token::U8(byte));
@@ -654,7 +435,7 @@ mod tests {
 
         let mut tokens = Vec::new();
 
-        tokens.push(Token::Seq { len: Some(64) });
+        tokens.push(Token::Seq { len: Some(96) });
 
         for byte in keypair.to_vec().into_iter() {
             tokens.push(Token::U8(byte));

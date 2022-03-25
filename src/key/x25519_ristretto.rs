@@ -648,7 +648,7 @@ impl DiffieHellman for EphemeralSecretKey {
 
     fn diffie_hellman(&self, peer_public: &Self::PK) -> Self::SSK {
         let mut bytes = [0u8; 32];
-        bytes.copy_from_slice(&self.0.to_ed25519_bytes()[..32]);
+        bytes.copy_from_slice(&self.0.to_bytes()[..32]);
 
         SharedSecret(Scalar::from_bits(bytes) * peer_public.0.as_point())
     }
@@ -696,6 +696,7 @@ impl ToVec for EphemeralSecretKey {
 mod tests {
     use super::{EphemeralSecretKey, PublicKey, SecretKey};
     use crate::errors::{KeyPairError, SignatureError};
+    use crate::key::ed25519;
     use crate::key::x25519_ristretto::KeyPair;
     use bip39::Mnemonic;
     use cryptraits::convert::{FromBytes, ToVec};

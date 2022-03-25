@@ -1,4 +1,4 @@
-//! SHA-256 hash.
+//! SHA-512 hash.
 
 use cryptraits::hash::Hash as HashTrait;
 use sha2::Digest;
