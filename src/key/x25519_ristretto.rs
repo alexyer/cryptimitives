@@ -654,6 +654,57 @@ impl DiffieHellman for EphemeralSecretKey {
     }
 }
 
+impl Blind for EphemeralSecretKey {
+    type E = KeyPairError;
+
+    fn blind(&mut self, blinding_factor: &[u8]) -> Result<(), Self::E> {
+        // Blinding factor length should be equal to the secret key Scalar length.
+        if blinding_factor.len() != 32 {
+            return Err(KeyPairError::BytesLengthError);
+        }
+
+        let mut bytes = self.0.to_bytes();
+
+        let mut scalar = [0; 32];
+        scalar.copy_from_slice(&bytes[..32]);
+
+        let mut factor = [0; 32];
+        factor.copy_from_slice(blinding_factor);
+
+        let new_scalar = Scalar::from_bits(scalar) * Scalar::from_bits(factor);
+
+        bytes[..32].copy_from_slice(&new_scalar.to_bytes());
+
+        self.0 = schnorrkel::SecretKey::from_bytes(&bytes)?;
+
+        Ok(())
+    }
+
+    fn to_blind(&self, blinding_factor: &[u8]) -> Result<Self, Self::E>
+    where
+        Self: Sized,
+    {
+        // Blinding factor length should be equal to the secret key Scalar length.
+        if blinding_factor.len() != 32 {
+            return Err(KeyPairError::BytesLengthError);
+        }
+
+        let mut bytes = self.0.to_bytes();
+
+        let mut scalar = [0; 32];
+        scalar.copy_from_slice(&bytes[..32]);
+
+        let mut factor = [0; 32];
+        factor.copy_from_slice(blinding_factor);
+
+        let new_scalar = Scalar::from_bits(scalar) * Scalar::from_bits(factor);
+
+        bytes[..32].copy_from_slice(&new_scalar.to_bytes());
+
+        Ok(Self(schnorrkel::SecretKey::from_bytes(&bytes)?))
+    }
+}
+
 /// The public key derived from an ephemeral secret key.
 #[derive(Debug, Clone, Copy, PartialEq, Zeroize)]
 pub struct EphemeralPublicKey(#[zeroize(skip)] schnorrkel::PublicKey);
@@ -679,6 +730,45 @@ impl ToVec for EphemeralPublicKey {
     }
 }
 
+impl Blind for EphemeralPublicKey {
+    type E = KeyPairError;
+
+    fn blind(&mut self, blinding_factor: &[u8]) -> Result<(), Self::E> {
+        // Blinding factor length should be equal to the secret key Scalar length.
+        if blinding_factor.len() != 32 {
+            return Err(KeyPairError::BytesLengthError);
+        }
+
+        let mut factor = [0; 32];
+        factor.copy_from_slice(blinding_factor);
+
+        let mut point = self.0.into_point();
+        point.mul_assign(Scalar::from_bits(factor));
+
+        self.0 = schnorrkel::PublicKey::from_point(point);
+
+        Ok(())
+    }
+
+    fn to_blind(&self, blinding_factor: &[u8]) -> Result<Self, Self::E>
+    where
+        Self: Sized,
+    {
+        // Blinding factor length should be equal to the secret key Scalar length.
+        if blinding_factor.len() != 32 {
+            return Err(KeyPairError::BytesLengthError);
+        }
+
+        let mut factor = [0; 32];
+        factor.copy_from_slice(blinding_factor);
+
+        let mut point = self.0.clone().into_point();
+        point.mul_assign(Scalar::from_bits(factor));
+
+        Ok(Self(schnorrkel::PublicKey::from_point(point)))
+    }
+}
+
 impl Len for EphemeralSecretKey {
     const LEN: usize = 32;
 }
@@ -697,7 +787,7 @@ mod tests {
     use super::{EphemeralSecretKey, PublicKey, SecretKey};
     use crate::errors::{KeyPairError, SignatureError};
     use crate::key::ed25519;
-    use crate::key::x25519_ristretto::KeyPair;
+    use crate::key::x25519_ristretto::{EphemeralPublicKey, KeyPair};
     use bip39::Mnemonic;
     use cryptraits::convert::{FromBytes, ToVec};
     use cryptraits::key::{Blind, Generate, KeyPair as _, SecretKey as _, WithPhrase};
@@ -1008,5 +1098,43 @@ mod tests {
         let keypair = KeyPair::from(secret.clone());
 
         assert_eq!(keypair.secret(), &secret);
+    }
+
+    #[test]
+    fn test_ephemeral_secret_key_blinding() {
+        let mut secret = EphemeralSecretKey::generate();
+        let another_secret = secret.clone();
+
+        let blinding_factor = vec![
+            143, 50, 102, 65, 121, 149, 204, 85, 156, 141, 109, 158, 18, 78, 54, 192, 46, 72, 245,
+            101, 84, 67, 231, 80, 12, 178, 157, 87, 165, 252, 59, 4,
+        ];
+
+        assert!(secret.blind(&blinding_factor).is_ok());
+
+        let blinded_secret = another_secret.to_blind(&blinding_factor).unwrap();
+
+        assert_ne!(another_secret.to_vec(), blinded_secret.to_vec());
+        assert_eq!(secret.to_vec(), blinded_secret.to_vec());
+    }
+
+    #[test]
+    fn test_ephemeral_public_key_blinding() {
+        let mut public = EphemeralSecretKey::generate().to_public();
+        let another_public = public.clone();
+
+        assert_eq!(public.to_vec(), another_public.to_vec());
+
+        let blinding_factor = vec![
+            143, 50, 102, 65, 121, 149, 204, 85, 156, 141, 109, 158, 18, 78, 54, 192, 46, 72, 245,
+            101, 84, 67, 231, 80, 12, 178, 157, 87, 165, 252, 59, 4,
+        ];
+
+        assert!(public.blind(&blinding_factor).is_ok());
+
+        let blinded_public = another_public.to_blind(&blinding_factor).unwrap();
+
+        assert_ne!(another_public.to_vec(), blinded_public.to_vec());
+        assert_eq!(public.to_vec(), blinded_public.to_vec());
     }
 }
