@@ -3,11 +3,12 @@
 use cryptraits::kdf::Kdf as KdfTrait;
 use hkdf::Hkdf;
 use sha2::Sha256;
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::Zeroize;
 
 use crate::errors::KdfError;
 
-#[derive(Zeroize, ZeroizeOnDrop)]
+#[derive(Zeroize)]
+#[zeroize(drop)]
 pub struct Kdf(#[zeroize(skip)] Hkdf<Sha256>);
 
 impl KdfTrait for Kdf {

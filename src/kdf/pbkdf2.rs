@@ -3,11 +3,10 @@
 use std::marker::PhantomData;
 
 use cryptraits::{convert::Len, hmac::Hmac, kdf::Kdf as KdfTrait};
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::Zeroize;
 
 use crate::errors::KdfError;
 
-#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct Kdf<PRF>
 where
     PRF: Hmac + Len,
@@ -15,8 +14,17 @@ where
     data: Vec<u8>,
     salt: Vec<u8>,
 
-    #[zeroize(skip)]
     _prf: PhantomData<PRF>,
+}
+
+impl<PRF> Zeroize for Kdf<PRF>
+where
+    PRF: Hmac + Len,
+{
+    fn zeroize(&mut self) {
+        self.data.zeroize();
+        self.salt.zeroize();
+    }
 }
 
 impl<PRF> KdfTrait for Kdf<PRF>
