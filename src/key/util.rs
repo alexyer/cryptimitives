@@ -1,5 +1,7 @@
 //! Utility functions and test stubs.
 
+use std::fmt::Display;
+
 use cryptraits::{
     convert::{FromBytes, Len, ToVec},
     kdf::Kdf,
@@ -15,6 +17,12 @@ use crate::errors::KeyPairError;
 pub struct TestPublicKey([u8; 5]);
 
 impl PublicKey for TestPublicKey {}
+
+impl Display for TestPublicKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&hex::encode(self.to_vec()))
+    }
+}
 
 impl FromBytes for TestPublicKey {
     type E = KeyPairError;

@@ -18,6 +18,12 @@ use std::fmt::Debug;
 
 use core::hash::Hash;
 
+#[cfg(not(feature = "std"))]
+use alloc::fmt::Display;
+
+#[cfg(feature = "std")]
+use std::fmt::Display;
+
 use zeroize::Zeroize;
 
 #[cfg(not(feature = "std"))]
@@ -206,6 +212,12 @@ impl Hash for PublicKey {
 }
 
 impl PublicKeyTrait for PublicKey {}
+
+impl Display for PublicKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&hex::encode(self.to_vec()))
+    }
+}
 
 impl Len for PublicKey {
     const LEN: usize = 32;

@@ -26,6 +26,12 @@ use std::fmt::Debug;
 use std::ops::MulAssign;
 
 #[cfg(not(feature = "std"))]
+use alloc::fmt::Display;
+
+#[cfg(feature = "std")]
+use std::fmt::Display;
+
+#[cfg(not(feature = "std"))]
 use alloc::fmt::Debug;
 
 #[cfg(not(feature = "std"))]
@@ -560,6 +566,12 @@ impl Debug for PublicKey {
     }
 }
 
+impl Display for PublicKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&hex::encode(self.to_vec()))
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Signature(schnorrkel::Signature);
 impl SignatureTrait for Signature {}
@@ -710,6 +722,12 @@ impl Blind for EphemeralSecretKey {
 pub struct EphemeralPublicKey(#[zeroize(skip)] schnorrkel::PublicKey);
 
 impl PublicKeyTrait for EphemeralPublicKey {}
+
+impl Display for EphemeralPublicKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&hex::encode(self.to_vec()))
+    }
+}
 
 impl From<PublicKey> for EphemeralPublicKey {
     fn from(ik: PublicKey) -> Self {
