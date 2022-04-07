@@ -605,7 +605,7 @@ impl Len for Signature {
 
 /// A Diffie-Hellman shared secret derived from an `EphemeralSecretKey`
 /// and the other party's `PublicKey`.
-#[derive(Clone, Zeroize)]
+#[derive(Clone, Debug, Zeroize)]
 pub struct SharedSecret(#[zeroize(skip)] RistrettoPoint);
 impl SharedSecretKey for SharedSecret {}
 
