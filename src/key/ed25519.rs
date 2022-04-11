@@ -96,6 +96,7 @@ impl SecretKeyTrait for SecretKey {
     type PK = PublicKey;
 
     fn to_public(&self) -> Self::PK {
+        #[allow(clippy::needless_borrow)]
         PublicKey((&self.0).into())
     }
 }
@@ -144,6 +145,7 @@ impl<'a> Sign for SecretKey {
     where
         Self: Sized,
     {
+        #[allow(clippy::needless_borrow)]
         Signature(self.0.sign(&data, &(&self.0).into()))
     }
 }
@@ -194,7 +196,7 @@ impl<'de> Deserialize<'de> for SecretKey {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Zeroize)]
+#[derive(Clone, Copy, Eq, Zeroize)]
 pub struct PublicKey(#[zeroize(skip)] ed25519_dalek::PublicKey);
 
 impl Debug for PublicKey {
@@ -202,6 +204,12 @@ impl Debug for PublicKey {
         f.debug_tuple("PublicKey")
             .field(&hex::encode(self.to_vec()))
             .finish()
+    }
+}
+
+impl PartialEq for PublicKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
     }
 }
 

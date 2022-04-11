@@ -326,7 +326,7 @@ impl FromBytes for SecretKey {
         Self: Sized,
     {
         let secret = schnorrkel::SecretKey::from_bytes(bytes)
-            .or_else(|e| Err(KeyPairError::UnknownError(e.to_string())))?;
+            .map_err(|e| KeyPairError::UnknownError(e.to_string()))?;
 
         Ok(SecretKey(secret))
     }
@@ -404,7 +404,7 @@ impl<'a> Sign for SecretKey {
     where
         Self: Sized,
     {
-        Signature(self.0.sign_simple(b"X3DH", &data, &self.0.to_public()))
+        Signature(self.0.sign_simple(b"X3DH", data, &self.0.to_public()))
     }
 }
 
@@ -467,7 +467,7 @@ impl FromBytes for PublicKey {
         Self: Sized,
     {
         let public = schnorrkel::PublicKey::from_bytes(bytes)
-            .or_else(|e| Err(KeyPairError::UnknownError(e.to_string())))?;
+            .map_err(|e| KeyPairError::UnknownError(e.to_string()))?;
 
         Ok(PublicKey(public))
     }
@@ -483,6 +483,7 @@ impl From<EphemeralPublicKey> for PublicKey {
     }
 }
 
+#[allow(clippy::from_over_into)]
 impl Into<EphemeralPublicKey> for &PublicKey {
     fn into(self) -> EphemeralPublicKey {
         EphemeralPublicKey(self.0)
@@ -543,7 +544,7 @@ impl Blind for PublicKey {
         let mut factor = [0; 32];
         factor.copy_from_slice(blinding_factor);
 
-        let mut point = self.0.clone().into_point();
+        let mut point = self.0.into_point();
         point.mul_assign(Scalar::from_bits(factor));
 
         Ok(Self(schnorrkel::PublicKey::from_point(point)))
@@ -584,7 +585,7 @@ impl FromBytes for Signature {
         Self: Sized,
     {
         let signature = schnorrkel::Signature::from_bytes(bytes)
-            .or_else(|e| Err(KeyPairError::UnknownError(e.to_string())))?;
+            .map_err(|e| KeyPairError::UnknownError(e.to_string()))?;
 
         Ok(Signature(signature))
     }
@@ -749,6 +750,20 @@ impl ToVec for EphemeralPublicKey {
     }
 }
 
+impl FromBytes for EphemeralPublicKey {
+    type E = KeyPairError;
+
+    fn from_bytes(bytes: &[u8]) -> Result<Self, Self::E>
+    where
+        Self: Sized,
+    {
+        let public = schnorrkel::PublicKey::from_bytes(bytes)
+            .map_err(|e| KeyPairError::UnknownError(e.to_string()))?;
+
+        Ok(EphemeralPublicKey(public))
+    }
+}
+
 impl Blind for EphemeralPublicKey {
     type E = KeyPairError;
 
@@ -781,7 +796,7 @@ impl Blind for EphemeralPublicKey {
         let mut factor = [0; 32];
         factor.copy_from_slice(blinding_factor);
 
-        let mut point = self.0.clone().into_point();
+        let mut point = self.0.into_point();
         point.mul_assign(Scalar::from_bits(factor));
 
         Ok(Self(schnorrkel::PublicKey::from_point(point)))

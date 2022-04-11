@@ -33,9 +33,7 @@ impl FromBytes for TestPublicKey {
     {
         let mut key: [u8; <Self as Len>::LEN] = [0; <Self as Len>::LEN];
 
-        for i in 0..<Self as Len>::LEN {
-            key[i] = bytes[i];
-        }
+        key[..<Self as Len>::LEN].copy_from_slice(&bytes[..<Self as Len>::LEN]);
 
         Ok(Self(key))
     }
@@ -88,9 +86,7 @@ impl FromBytes for TestSecretKey {
     {
         let mut key: [u8; Self::LEN] = [0; Self::LEN];
 
-        for i in 0..Self::LEN {
-            key[i] = bytes[i];
-        }
+        key[..Self::LEN].copy_from_slice(&bytes[..Self::LEN]);
 
         Ok(Self(key))
     }
@@ -127,9 +123,7 @@ impl FromBytes for TestSignature {
     {
         let mut signature: [u8; 2] = [0; 2];
 
-        for i in 0..2 {
-            signature[i] = bytes[i];
-        }
+        signature[..2].copy_from_slice(&bytes[..2]);
 
         Ok(Self(signature))
     }
