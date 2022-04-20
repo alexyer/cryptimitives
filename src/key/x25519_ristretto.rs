@@ -166,7 +166,7 @@ impl WithPhrase for KeyPair {
 
 #[derive(Zeroize, Debug, Clone, PartialEq)]
 #[zeroize(drop)]
-pub struct SecretKey(schnorrkel::SecretKey);
+pub struct SecretKey(pub(crate) schnorrkel::SecretKey);
 
 impl SecretKey {
     /// Convert this SecretKey into an array of 64 bytes, corresponding to an Ed25519 expanded secret key.
@@ -640,6 +640,12 @@ impl SecretKeyTrait for EphemeralSecretKey {
 
     fn to_public(&self) -> Self::PK {
         EphemeralPublicKey(self.0.to_public())
+    }
+}
+
+impl From<SecretKey> for EphemeralSecretKey {
+    fn from(sk: SecretKey) -> Self {
+        Self(sk.0.clone())
     }
 }
 
@@ -1170,5 +1176,13 @@ mod tests {
 
         assert_ne!(another_public.to_vec(), blinded_public.to_vec());
         assert_eq!(public.to_vec(), blinded_public.to_vec());
+    }
+
+    #[test]
+    fn test_ephemeral_secret_key_from_secret_key() {
+        let sk = SecretKey::generate();
+        let esk: EphemeralSecretKey = sk.clone().into();
+
+        assert_eq!(sk.to_vec(), esk.to_vec());
     }
 }
