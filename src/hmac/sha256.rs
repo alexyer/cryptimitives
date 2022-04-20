@@ -9,7 +9,7 @@ use zeroize::Zeroize;
 use crate::errors::HmacError;
 
 /// SHA-256 based HMAC.
-#[derive(Zeroize)]
+#[derive(Clone, Zeroize)]
 pub struct Hmac(#[zeroize(skip)] ManuallyDrop<hmac::Hmac<Sha256>>);
 
 impl Drop for Hmac {
