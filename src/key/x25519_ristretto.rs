@@ -649,6 +649,12 @@ impl From<SecretKey> for EphemeralSecretKey {
     }
 }
 
+impl From<&SecretKey> for EphemeralSecretKey {
+    fn from(sk: &SecretKey) -> Self {
+        EphemeralSecretKey(sk.0.clone())
+    }
+}
+
 impl Generate for EphemeralSecretKey {
     fn generate() -> Self {
         Self::generate_with(&mut OsRng)
@@ -1182,6 +1188,14 @@ mod tests {
     fn test_ephemeral_secret_key_from_secret_key() {
         let sk = SecretKey::generate();
         let esk: EphemeralSecretKey = sk.clone().into();
+
+        assert_eq!(sk.to_vec(), esk.to_vec());
+    }
+
+    #[test]
+    fn test_ephemeral_secret_key_from_ref_secret_key() {
+        let sk = SecretKey::generate();
+        let esk: EphemeralSecretKey = (&sk).into();
 
         assert_eq!(sk.to_vec(), esk.to_vec());
     }
