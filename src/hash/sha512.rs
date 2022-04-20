@@ -4,7 +4,7 @@ use cryptraits::hash::Hash as HashTrait;
 use sha2::Digest;
 use zeroize::Zeroize;
 
-#[derive(Zeroize)]
+#[derive(Clone, Zeroize)]
 pub struct Hash(#[zeroize(skip)] sha2::Sha512);
 
 impl HashTrait for Hash {
