@@ -6,17 +6,17 @@ use std::fmt::Display;
 use cryptraits_macros::Error;
 
 /// AEAD algorithm error.
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Clone)]
 pub struct AeadError;
 
 /// KDF algorithm error.
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Clone)]
 pub enum KdfError {
     InvalidLength,
 }
 
 /// KeyPair errors.
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Clone)]
 pub enum KeyPairError {
     BytesLengthError,
     UnknownError(String),
@@ -28,14 +28,14 @@ pub enum KeyPairError {
 }
 
 /// HMAC algorithm errors.
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Clone)]
 pub enum HmacError {
     InvalidLength,
     MacError,
 }
 
 /// Stream cipher algorithm errors.
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Clone)]
 pub enum StreamCipherError {
     /// The error returned when key or nonce used in stream cipher
     /// has an invalid length.
@@ -46,7 +46,7 @@ pub enum StreamCipherError {
 }
 
 /// Errors which may occur while processing signatures.
-#[derive(Debug, Error, PartialEq)]
+#[derive(Debug, Error, PartialEq, Clone)]
 pub enum SignatureError {
     /// A signature verification equation failed.
     EquationFalse,
