@@ -411,7 +411,11 @@ impl<'a> Sign for SecretKey {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Zeroize)]
 pub struct PublicKey(#[zeroize(skip)] schnorrkel::PublicKey);
 
-impl PublicKeyTrait for PublicKey {}
+impl PublicKeyTrait for PublicKey {
+    fn as_bytes(&self) -> &[u8] {
+        self.0.as_compressed().as_bytes()
+    }
+}
 
 #[cfg(feature = "serde_derive")]
 impl Serialize for PublicKey {
@@ -735,7 +739,11 @@ impl Blind for EphemeralSecretKey {
 #[derive(Debug, Clone, Copy, PartialEq, Zeroize)]
 pub struct EphemeralPublicKey(#[zeroize(skip)] schnorrkel::PublicKey);
 
-impl PublicKeyTrait for EphemeralPublicKey {}
+impl PublicKeyTrait for EphemeralPublicKey {
+    fn as_bytes(&self) -> &[u8] {
+        self.0.as_compressed().as_bytes()
+    }
+}
 
 impl Display for EphemeralPublicKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

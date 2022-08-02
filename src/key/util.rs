@@ -16,7 +16,11 @@ use crate::errors::KeyPairError;
 #[derive(Debug, PartialEq, Clone, Copy, Eq, Hash, Zeroize)]
 pub struct TestPublicKey([u8; 5]);
 
-impl PublicKey for TestPublicKey {}
+impl PublicKey for TestPublicKey {
+    fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
 
 impl Display for TestPublicKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
