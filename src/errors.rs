@@ -96,35 +96,35 @@ impl Display for AeadError {
 #[cfg(feature = "std")]
 impl Display for KdfError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&format!("KdfError::{:?}", self))
+        f.write_str(&format!("KdfError::{self:?}"))
     }
 }
 
 #[cfg(feature = "std")]
 impl Display for KeyPairError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&format!("KeyPairError::{:?}", self))
+        f.write_str(&format!("KeyPairError::{self:?}"))
     }
 }
 
 #[cfg(feature = "std")]
 impl Display for HmacError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&format!("HmacError::{:?}", self))
+        f.write_str(&format!("HmacError::{self:?}"))
     }
 }
 
 #[cfg(feature = "std")]
 impl Display for StreamCipherError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&format!("StreamCipherError::{:?}", self))
+        f.write_str(&format!("StreamCipherError::{self:?}"))
     }
 }
 
 #[cfg(feature = "std")]
 impl Display for SignatureError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&format!("SignatureErrors::{:?}", self))
+        f.write_str(&format!("SignatureErrors::{self:?}"))
     }
 }
 

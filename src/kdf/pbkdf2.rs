@@ -36,7 +36,7 @@ where
     fn new(salt: Option<&[u8]>, data: &[u8]) -> Self {
         Self {
             data: Vec::from(data),
-            salt: Vec::from(salt.or(Some("".as_bytes())).unwrap()),
+            salt: Vec::from(salt.unwrap_or("".as_bytes())),
             _prf: PhantomData::default(),
         }
     }

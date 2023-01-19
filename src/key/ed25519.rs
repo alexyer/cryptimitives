@@ -138,7 +138,7 @@ impl ToVec for SecretKey {
     }
 }
 
-impl<'a> Sign for SecretKey {
+impl Sign for SecretKey {
     type SIG = Signature;
 
     fn sign(&self, data: &[u8]) -> Self::SIG

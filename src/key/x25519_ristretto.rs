@@ -4,7 +4,7 @@ use bip39::{Language, Mnemonic};
 use cryptraits::{
     convert::{FromBytes, Len, ToVec},
     key::PublicKey as PublicKeyTrait,
-    key::{Blind, Generate, SecretKey as SecretKeyTrait, SharedSecretKey, WithPhrase},
+    key::{Blind, FromEntropy, Generate, SecretKey as SecretKeyTrait, SharedSecretKey, WithPhrase},
     key_exchange::DiffieHellman,
     signature::{Sign, Signature as SignatureTrait, Verify},
 };
@@ -161,6 +161,20 @@ impl WithPhrase for KeyPair {
         let keypair = Self::from_phrase(&phrase, password)?;
 
         Ok((keypair, phrase))
+    }
+}
+
+impl FromEntropy for KeyPair {
+    type E = KeyPairError;
+
+    fn from_entropy(entropy: &[u8]) -> Result<Self, Self::E>
+    where
+        Self: Sized,
+    {
+        let secret = SecretKey::from_entropy(entropy)?;
+        let public = secret.to_public();
+
+        Ok(Self { secret, public })
     }
 }
 
@@ -397,7 +411,20 @@ impl WithPhrase for SecretKey {
     }
 }
 
-impl<'a> Sign for SecretKey {
+impl FromEntropy for SecretKey {
+    type E = KeyPairError;
+
+    fn from_entropy(entropy: &[u8]) -> Result<Self, Self::E>
+    where
+        Self: Sized,
+    {
+        let seed = seed_from_entropy(entropy, "")?;
+        let mini_secret_key = MiniSecretKey::from_bytes(&seed[..32]).unwrap();
+        Ok(SecretKey(mini_secret_key.expand(ExpansionMode::Uniform)))
+    }
+}
+
+impl Sign for SecretKey {
     type SIG = Signature;
 
     fn sign(&self, data: &[u8]) -> Self::SIG
@@ -511,7 +538,7 @@ impl Verify for PublicKey {
         match self.0.verify_simple(b"X3DH", data, &signature.0) {
             Ok(_) => Ok(()),
             Err(schnorrkel::SignatureError::EquationFalse) => Err(SignatureError::EquationFalse),
-            Err(e) => panic!("Unknown error: {:?}", e),
+            Err(e) => panic!("Unknown error: {e:?}"),
         }
     }
 }
@@ -844,7 +871,7 @@ mod tests {
     use crate::key::x25519_ristretto::{EphemeralPublicKey, KeyPair};
     use bip39::Mnemonic;
     use cryptraits::convert::{FromBytes, ToVec};
-    use cryptraits::key::{Blind, Generate, KeyPair as _, SecretKey as _, WithPhrase};
+    use cryptraits::key::{Blind, FromEntropy, Generate, KeyPair as _, SecretKey as _, WithPhrase};
     use cryptraits::key_exchange::DiffieHellman;
     use cryptraits::signature::{Sign, Verify};
     use rand_core::OsRng;
@@ -1206,5 +1233,21 @@ mod tests {
         let esk: EphemeralSecretKey = (&sk).into();
 
         assert_eq!(sk.to_vec(), esk.to_vec());
+    }
+
+    #[test]
+    fn test_secret_key_from_entropy() {
+        let sk = SecretKey::from_entropy(&[42; 32]).unwrap();
+        let another_sk = SecretKey::from_entropy(&[42; 32]).unwrap();
+
+        assert_eq!(sk.to_vec(), another_sk.to_vec());
+    }
+
+    #[test]
+    fn test_keypair_from_entropy() {
+        let keypair = KeyPair::from_entropy(&[42; 32]).unwrap();
+        let secret = SecretKey::from_entropy(&[42; 32]).unwrap();
+
+        assert_eq!(keypair.secret().to_vec(), secret.to_vec());
     }
 }
