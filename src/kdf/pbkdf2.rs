@@ -37,7 +37,7 @@ where
         Self {
             data: Vec::from(data),
             salt: Vec::from(salt.unwrap_or("".as_bytes())),
-            _prf: PhantomData::default(),
+            _prf: PhantomData,
         }
     }
 

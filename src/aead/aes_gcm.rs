@@ -2,7 +2,7 @@
 
 use aes_gcm::{
     aead::{Aead as _, Payload},
-    Key, NewAead, Nonce,
+    Key, KeyInit, Nonce,
 };
 use cryptraits::aead::Aead;
 use zeroize::Zeroize;
@@ -19,7 +19,7 @@ impl Aead for Aes256Gcm {
     const NONCE_LEN: usize = 12;
 
     fn new(key: &[u8]) -> Self {
-        let key = Key::from_slice(key);
+        let key = Key::<aes_gcm::Aes256Gcm>::from_slice(key);
         Self(::aes_gcm::Aes256Gcm::new(key))
     }
 

@@ -5,7 +5,7 @@ use cryptraits::{
     key::{PublicKey as PublicKeyTrait, SecretKey as SecretKeyTrait},
     signature::Signature as SignatureTrait,
 };
-use ed25519_dalek::Verifier;
+use ed25519_dalek::{Signer, Verifier};
 
 #[cfg(feature = "serde_derive")]
 use serde::de::{Error, SeqAccess, Unexpected, Visitor};
@@ -82,9 +82,9 @@ impl<'de> Deserialize<'de> for KeyPair {
     }
 }
 
-#[derive(Zeroize)]
+#[derive(Clone, Zeroize, PartialEq)]
 #[zeroize(drop)]
-pub struct SecretKey(ed25519_dalek::ExpandedSecretKey);
+pub struct SecretKey(ed25519_dalek::SecretKey);
 
 impl Debug for SecretKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -96,25 +96,13 @@ impl SecretKeyTrait for SecretKey {
     type PK = PublicKey;
 
     fn to_public(&self) -> Self::PK {
-        #[allow(clippy::needless_borrow)]
-        PublicKey((&self.0).into())
-    }
-}
-
-impl Clone for SecretKey {
-    fn clone(&self) -> Self {
-        Self(ed25519_dalek::ExpandedSecretKey::from_bytes(&self.0.to_bytes()).unwrap())
-    }
-}
-
-impl PartialEq for SecretKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.to_bytes() == other.0.to_bytes()
+        let signing_key = ed25519_dalek::SigningKey::from_bytes(&self.0);
+        PublicKey(signing_key.verifying_key())
     }
 }
 
 impl Len for SecretKey {
-    const LEN: usize = 64;
+    const LEN: usize = 32;
 }
 
 impl FromBytes for SecretKey {
@@ -124,7 +112,9 @@ impl FromBytes for SecretKey {
     where
         Self: Sized,
     {
-        let secret = ed25519_dalek::ExpandedSecretKey::from_bytes(bytes)?;
+        let mut secret = [0; 32];
+        secret.copy_from_slice(&bytes[..32]);
+
         Ok(Self(secret))
     }
 }
@@ -134,7 +124,7 @@ impl ToVec for SecretKey {
     where
         Self: Sized,
     {
-        Vec::from(self.0.to_bytes())
+        self.0.to_vec()
     }
 }
 
@@ -145,8 +135,8 @@ impl Sign for SecretKey {
     where
         Self: Sized,
     {
-        #[allow(clippy::needless_borrow)]
-        Signature(self.0.sign(&data, &(&self.0).into()))
+        let signing_key = ed25519_dalek::SigningKey::from_bytes(&self.0);
+        Signature(signing_key.sign(data))
     }
 }
 
@@ -197,7 +187,7 @@ impl<'de> Deserialize<'de> for SecretKey {
 }
 
 #[derive(Clone, Copy, Eq, Zeroize)]
-pub struct PublicKey(#[zeroize(skip)] ed25519_dalek::PublicKey);
+pub struct PublicKey(#[zeroize(skip)] ed25519_dalek::VerifyingKey);
 
 impl Debug for PublicKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -242,7 +232,14 @@ impl FromBytes for PublicKey {
     where
         Self: Sized,
     {
-        let public = ed25519_dalek::PublicKey::from_bytes(bytes)?;
+        if bytes.len() != 32 {
+            return Err(KeyPairError::BytesLengthError);
+        }
+
+        let mut public_bytes = [0; 32];
+        public_bytes.copy_from_slice(bytes);
+
+        let public = ed25519_dalek::VerifyingKey::from_bytes(&public_bytes)?;
         Ok(Self(public))
     }
 }
@@ -328,7 +325,7 @@ impl FromBytes for Signature {
     where
         Self: Sized,
     {
-        let signature = ed25519_dalek::Signature::from_bytes(bytes)?;
+        let signature = ed25519_dalek::Signature::from_slice(bytes)?;
         Ok(Self(signature))
     }
 }
@@ -355,20 +352,18 @@ mod tests {
 
     use super::SecretKey;
 
-    const ALICE: [u8; 96] = [
+    const ALICE: [u8; 64] = [
         24, 96, 63, 231, 236, 136, 164, 225, 105, 202, 11, 198, 122, 20, 82, 211, 7, 123, 242, 95,
-        196, 12, 125, 239, 30, 213, 142, 152, 44, 190, 208, 114, 219, 196, 254, 31, 193, 139, 137,
-        179, 134, 57, 239, 57, 136, 47, 200, 220, 133, 163, 62, 113, 192, 43, 117, 234, 84, 54, 80,
-        32, 109, 230, 181, 34, 228, 20, 176, 204, 111, 171, 211, 222, 35, 93, 59, 130, 87, 43, 211,
-        240, 152, 245, 205, 241, 214, 228, 202, 182, 62, 70, 230, 244, 33, 77, 237, 60,
+        196, 12, 125, 239, 30, 213, 142, 152, 44, 190, 208, 114, 23, 48, 153, 209, 41, 119, 171,
+        75, 133, 143, 182, 126, 166, 183, 13, 200, 228, 46, 12, 196, 74, 33, 172, 184, 76, 85, 46,
+        248, 175, 115, 126, 18,
     ];
 
-    const BOB: [u8; 96] = [
+    const BOB: [u8; 64] = [
         56, 36, 219, 22, 94, 68, 246, 204, 121, 18, 213, 150, 205, 112, 138, 10, 55, 15, 30, 205,
-        107, 246, 104, 215, 142, 131, 242, 58, 67, 51, 47, 52, 32, 25, 135, 101, 169, 189, 245, 47,
-        104, 215, 211, 85, 82, 92, 50, 116, 113, 159, 117, 134, 151, 85, 221, 211, 53, 81, 31, 51,
-        123, 46, 0, 26, 186, 109, 157, 40, 129, 127, 220, 84, 204, 251, 238, 87, 99, 176, 115, 51,
-        16, 169, 199, 33, 242, 3, 230, 66, 106, 41, 84, 238, 51, 47, 208, 48,
+        107, 246, 104, 215, 142, 131, 242, 58, 67, 51, 47, 52, 158, 148, 186, 206, 11, 99, 185,
+        148, 160, 154, 166, 185, 189, 173, 44, 238, 186, 13, 222, 208, 67, 192, 239, 191, 83, 52,
+        155, 51, 241, 231, 218, 51,
     ];
 
     #[test]
@@ -419,7 +414,7 @@ mod tests {
 
         let mut tokens = Vec::new();
 
-        tokens.push(Token::Seq { len: Some(64) });
+        tokens.push(Token::Seq { len: Some(32) });
 
         for byte in secret.to_vec().into_iter() {
             tokens.push(Token::U8(byte));
@@ -459,7 +454,7 @@ mod tests {
 
         let mut tokens = Vec::new();
 
-        tokens.push(Token::Seq { len: Some(96) });
+        tokens.push(Token::Seq { len: Some(64) });
 
         for byte in keypair.to_vec().into_iter() {
             tokens.push(Token::U8(byte));

@@ -1,6 +1,6 @@
 //! ChaCha20 stream cipher.
 use chacha20::{
-    cipher::{NewCipher, StreamCipher as _},
+    cipher::{KeyIvInit, StreamCipher as _},
     ChaCha20,
 };
 use cryptraits::stream_cipher::StreamCipher as StreamCipherTrait;
